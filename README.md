@@ -1,6 +1,6 @@
 # NADI (Navigation Adaptive and Distribution Intelligence)
 
-# GEMASTIK XIX Project By :
+## GEMASTIK XIX Project By :
 
 ### 1. [Gung Nanda](https://www.github.com/zeppyx13)
 
