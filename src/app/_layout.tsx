@@ -8,17 +8,19 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Stack } from 'expo-router';
 
 import { colors } from '@/constants/theme';
+import { bootstrapI18n } from '@/i18n';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [i18nReady, setI18nReady] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -28,12 +30,24 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+    let isMounted = true;
 
-  if (!fontsLoaded && !fontError) {
+    void bootstrapI18n().finally(() => {
+      if (isMounted) setI18nReady(true);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const appReady = (fontsLoaded || !!fontError) && i18nReady;
+
+  useEffect(() => {
+    if (appReady) void SplashScreen.hideAsync();
+  }, [appReady]);
+
+  if (!appReady) {
     return null;
   }
 

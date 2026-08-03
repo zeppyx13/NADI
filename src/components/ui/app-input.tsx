@@ -1,4 +1,4 @@
-import React, { useState, type ReactNode } from 'react';
+import React, { forwardRef, useState, type ReactNode } from 'react';
 import {
   View,
   TextInput,
@@ -16,16 +16,23 @@ export type AppInputProps = TextInputProps & {
   trailingIcon?: ReactNode;
 };
 
-export function AppInput({
-  label,
-  error,
-  helperText,
-  leadingIcon,
-  trailingIcon,
-  style,
-  editable = true,
-  ...rest
-}: AppInputProps) {
+export const AppInput = forwardRef<TextInput, AppInputProps>(function AppInput(
+  {
+    label,
+    error,
+    helperText,
+    leadingIcon,
+    trailingIcon,
+    style,
+    editable = true,
+    onFocus,
+    onBlur,
+    accessibilityLabel,
+    accessibilityHint,
+    ...rest
+  },
+  ref,
+) {
   const [isFocused, setIsFocused] = useState(false);
 
   const getBorderColor = () => {
@@ -58,6 +65,7 @@ export function AppInput({
       >
         {leadingIcon && <View style={styles.iconLeading}>{leadingIcon}</View>}
         <TextInput
+          ref={ref}
           style={[
             styles.input,
             {
@@ -70,12 +78,14 @@ export function AppInput({
           editable={editable}
           onFocus={(e) => {
             setIsFocused(true);
-            rest.onFocus?.(e);
+            onFocus?.(e);
           }}
           onBlur={(e) => {
             setIsFocused(false);
-            rest.onBlur?.(e);
+            onBlur?.(e);
           }}
+          accessibilityLabel={accessibilityLabel ?? label}
+          accessibilityHint={accessibilityHint ?? error ?? helperText}
           placeholderTextColor={colors.neutral.textMuted}
           {...rest}
         />
@@ -92,7 +102,7 @@ export function AppInput({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

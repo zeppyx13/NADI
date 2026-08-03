@@ -87,17 +87,16 @@ export function AppButton({
       ]}
       {...rest}
     >
-      {loading ? (
-        <ActivityIndicator color={getTextColor()} />
-      ) : (
-        <View style={styles.content}>
-          {leadingIcon && <View style={styles.iconContainer}>{leadingIcon}</View>}
-          <AppText variant={textVariant} color={getTextColor()}>
-            {label}
-          </AppText>
-          {trailingIcon && <View style={styles.iconContainerTrailing}>{trailingIcon}</View>}
-        </View>
-      )}
+      <View style={styles.content}>
+        {loading && <ActivityIndicator color={getTextColor()} style={styles.loadingIndicator} />}
+        {!loading && leadingIcon && <View style={styles.iconContainer}>{leadingIcon}</View>}
+        <AppText variant={textVariant} color={getTextColor()}>
+          {label}
+        </AppText>
+        {!loading && trailingIcon && (
+          <View style={styles.iconContainerTrailing}>{trailingIcon}</View>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -123,5 +122,8 @@ const styles = StyleSheet.create({
   },
   iconContainerTrailing: {
     marginLeft: spacing[2],
+  },
+  loadingIndicator: {
+    marginRight: spacing[2],
   },
 });
