@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AuthScreenLayout } from '@/components/auth/auth-screen-layout';
+import { AuthFormContainer } from '@/components/auth/auth-form-container';
 import { PasswordField } from '@/components/auth/password-field';
 import { AppButton, AppInput, AppText } from '@/components/ui';
 import { colors, iconSizes, spacing } from '@/constants/theme';
@@ -54,7 +54,7 @@ export default function LoginScreen() {
 
   const handleForgotPassword = () => {
     Alert.alert(
-      t('prototype.noticeTitle', { ns: 'common' }),
+      t('availability.noticeTitle', { ns: 'common' }),
       t('login.forgotPasswordUnavailable', { ns: 'auth' }),
     );
   };
@@ -87,7 +87,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthScreenLayout
+    <AuthFormContainer
       title={t('login.title', { ns: 'auth' })}
       subtitle={t('login.subtitle', { ns: 'auth' })}
     >
@@ -170,7 +170,7 @@ export default function LoginScreen() {
           </Pressable>
         </View>
       </View>
-    </AuthScreenLayout>
+    </AuthFormContainer>
   );
 }
 

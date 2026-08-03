@@ -220,6 +220,8 @@ export const layout = {
   inputHeight: 48,
   bottomTabHeight: 68,
   minTouchTarget: 44,
+  authHeroHeight: 288,
+  authSheetOverlap: 24,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -353,4 +355,3 @@ export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 
 /** @deprecated */
 export const MaxContentWidth = 800;
-

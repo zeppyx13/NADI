@@ -4,11 +4,11 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { AppBadge, AppButton, AppText } from '@/components/ui';
+import { AppButton, AppText } from '@/components/ui';
 import { colors, iconSizes, layout, radii, spacing } from '@/constants/theme';
 
 export default function HomeScreen() {
-  const { t } = useTranslation(['common', 'auth']);
+  const { t } = useTranslation('common');
   const router = useRouter();
 
   return (
@@ -19,22 +19,18 @@ export default function HomeScreen() {
         </View>
         <View style={styles.copy}>
           <AppText variant="headingLg" style={styles.centerText}>
-            {t('home.title', { ns: 'common' })}
+            {t('home.title')}
           </AppText>
           <AppText
             variant="bodyMd"
             color={colors.neutral.textSecondary}
             style={styles.centerText}
           >
-            {t('home.subtitle', { ns: 'common' })}
+            {t('home.subtitle')}
           </AppText>
-          <AppBadge
-            label={t('brand.prototypeLabel', { ns: 'auth' })}
-            variant="simulation"
-          />
         </View>
         <AppButton
-          label={t('home.logout', { ns: 'common' })}
+          label={t('home.logout')}
           variant="ghost"
           onPress={() => router.replace('/login')}
         />

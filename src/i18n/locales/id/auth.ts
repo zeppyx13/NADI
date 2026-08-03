@@ -2,7 +2,10 @@ export const authId = {
   brand: {
     name: 'NADI',
     tagline: 'Perjalanan lebih cerdas, aman, dan merata di Bali.',
-    prototypeLabel: 'Mode Prototipe',
+  },
+  hero: {
+    photoCredit: 'Foto oleh {{name}} di Unsplash',
+    photoCreditAccessibility: 'Buka halaman fotografer {{name}} di Unsplash',
   },
   login: {
     title: 'Selamat datang kembali',
@@ -16,11 +19,10 @@ export const authId = {
     submit: 'Masuk',
     submitting: 'Sedang masuk...',
     forgotPassword: 'Lupa kata sandi?',
-    forgotPasswordUnavailable:
-      'Fitur pemulihan kata sandi belum tersedia pada versi prototipe.',
+    forgotPasswordUnavailable: 'Fitur pemulihan kata sandi belum tersedia.',
     noAccount: 'Belum memiliki akun?',
     registerAction: 'Daftar',
-    successMessage: 'Berhasil masuk ke mode demo NADI.',
+    successMessage: 'Berhasil masuk ke NADI.',
   },
   register: {
     title: 'Buat akun NADI',
@@ -41,13 +43,12 @@ export const authId = {
     termsPrefix: 'Saya menyetujui',
     termsAction: 'Ketentuan Penggunaan dan Kebijakan Privasi',
     termsAgreementLabel: 'Setujui ketentuan penggunaan dan kebijakan privasi',
-    termsUnavailable:
-      'Dokumen ketentuan dan kebijakan privasi belum tersedia pada versi prototipe.',
+    termsUnavailable: 'Dokumen ketentuan dan kebijakan privasi belum tersedia.',
     submit: 'Buat akun',
     submitting: 'Menyiapkan akun...',
     haveAccount: 'Sudah memiliki akun?',
     loginAction: 'Masuk',
-    successMessage: 'Akun demo siap digunakan.',
+    successMessage: 'Akun Anda siap digunakan.',
   },
   language: {
     actionLabel: 'Ganti bahasa',

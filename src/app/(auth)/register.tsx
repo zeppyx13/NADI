@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AuthScreenLayout } from '@/components/auth/auth-screen-layout';
+import { AuthFormContainer } from '@/components/auth/auth-form-container';
 import { PasswordField } from '@/components/auth/password-field';
 import { AppButton, AppInput, AppText } from '@/components/ui';
 import { colors, iconSizes, layout, radii, spacing } from '@/constants/theme';
@@ -74,17 +74,9 @@ export default function RegisterScreen() {
     setErrors((current) => ({ ...current, [field]: validateField(field) }));
   };
 
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/login');
-    }
-  };
-
   const handleTermsPress = () => {
     Alert.alert(
-      t('prototype.noticeTitle', { ns: 'common' }),
+      t('availability.noticeTitle', { ns: 'common' }),
       t('register.termsUnavailable', { ns: 'auth' }),
     );
   };
@@ -127,10 +119,9 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthScreenLayout
+    <AuthFormContainer
       title={t('register.title', { ns: 'auth' })}
       subtitle={t('register.subtitle', { ns: 'auth' })}
-      onBack={handleBack}
     >
       <View style={styles.form}>
         <AppInput
@@ -280,7 +271,7 @@ export default function RegisterScreen() {
           </Pressable>
         </View>
       </View>
-    </AuthScreenLayout>
+    </AuthFormContainer>
   );
 }
 

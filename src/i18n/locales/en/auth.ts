@@ -2,7 +2,10 @@ export const authEn = {
   brand: {
     name: 'NADI',
     tagline: 'Smarter, safer, and more balanced journeys across Bali.',
-    prototypeLabel: 'Prototype Mode',
+  },
+  hero: {
+    photoCredit: 'Photo by {{name}} on Unsplash',
+    photoCreditAccessibility: 'Open {{name}}’s photographer page on Unsplash',
   },
   login: {
     title: 'Welcome back',
@@ -16,11 +19,10 @@ export const authEn = {
     submit: 'Sign in',
     submitting: 'Signing in...',
     forgotPassword: 'Forgot password?',
-    forgotPasswordUnavailable:
-      'Password recovery is not available in the prototype version yet.',
+    forgotPasswordUnavailable: 'Password recovery is not available yet.',
     noAccount: 'Do not have an account?',
     registerAction: 'Register',
-    successMessage: 'You are now signed in to the NADI demo.',
+    successMessage: 'You are now signed in to NADI.',
   },
   register: {
     title: 'Create your NADI account',
@@ -41,13 +43,12 @@ export const authEn = {
     termsPrefix: 'I agree to the',
     termsAction: 'Terms of Use and Privacy Policy',
     termsAgreementLabel: 'Agree to the terms of use and privacy policy',
-    termsUnavailable:
-      'The terms and privacy policy are not available in the prototype version yet.',
+    termsUnavailable: 'The terms and privacy policy are not available yet.',
     submit: 'Create account',
     submitting: 'Preparing your account...',
     haveAccount: 'Already have an account?',
     loginAction: 'Sign in',
-    successMessage: 'Your demo account is ready.',
+    successMessage: 'Your account is ready.',
   },
   language: {
     actionLabel: 'Change language',
