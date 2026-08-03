@@ -6,12 +6,14 @@ import { AppInput, type AppInputProps } from './app-input';
 
 export type SearchFieldProps = Omit<AppInputProps, 'leadingIcon' | 'trailingIcon'> & {
   onClear?: () => void;
+  clearAccessibilityLabel?: string;
 };
 
 export function SearchField({
   value,
   placeholder = 'Cari...',
   onClear,
+  clearAccessibilityLabel = 'Clear search',
   ...rest
 }: SearchFieldProps) {
   const hasValue = value && value.length > 0;
@@ -24,7 +26,11 @@ export function SearchField({
       leadingIcon={<Search size={iconSizes.inline} color={colors.neutral.iconMuted} />}
       trailingIcon={
         hasValue && onClear ? (
-          <Pressable onPress={onClear} accessibilityRole="button" accessibilityLabel="Clear search">
+          <Pressable
+            onPress={onClear}
+            accessibilityRole="button"
+            accessibilityLabel={clearAccessibilityLabel}
+          >
             <X size={iconSizes.inline} color={colors.neutral.iconMuted} />
           </Pressable>
         ) : undefined

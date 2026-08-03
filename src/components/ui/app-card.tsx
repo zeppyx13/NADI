@@ -9,9 +9,16 @@ export type AppCardProps = {
   variant?: CardVariant;
   style?: ViewStyle;
   onPress?: () => void;
+  accessibilityLabel?: string;
 };
 
-export function AppCard({ children, variant = 'default', style, onPress }: AppCardProps) {
+export function AppCard({
+  children,
+  variant = 'default',
+  style,
+  onPress,
+  accessibilityLabel,
+}: AppCardProps) {
   const getCardStyle = () => {
     switch (variant) {
       case 'elevated':
@@ -37,6 +44,7 @@ export function AppCard({ children, variant = 'default', style, onPress }: AppCa
       ]}
       onPress={onPress}
       accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={accessibilityLabel}
     >
       {children}
     </RootComponent>

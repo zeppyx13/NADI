@@ -83,7 +83,7 @@ export default function LoginScreen() {
     AccessibilityInfo.announceForAccessibility(
       t('login.successMessage', { ns: 'auth' }),
     );
-    router.replace('/home');
+    router.replace('/(tabs)');
   };
 
   return (

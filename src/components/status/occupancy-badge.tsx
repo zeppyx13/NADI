@@ -1,16 +1,10 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Users } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { colors, radii, spacing, iconSizes } from '@/constants/theme';
 import { type OccupancyLevel } from '@/constants/theme';
 import { AppText } from '@/components/ui/app-text';
-
-const occupancyLabels: Record<OccupancyLevel, string> = {
-  low: 'Sepi',
-  moderate: 'Sedang',
-  high: 'Ramai',
-  critical: 'Padat',
-};
 
 export type OccupancyBadgeProps = {
   level: OccupancyLevel;
@@ -18,8 +12,9 @@ export type OccupancyBadgeProps = {
 };
 
 export function OccupancyBadge({ level, size = 'md' }: OccupancyBadgeProps) {
+  const { t } = useTranslation('screens');
   const color = colors.occupancy[level];
-  const label = occupancyLabels[level];
+  const label = t(`status.occupancy.${level}`);
   const isSm = size === 'sm';
   
   return (
@@ -30,7 +25,7 @@ export function OccupancyBadge({ level, size = 'md' }: OccupancyBadgeProps) {
         isSm && styles.containerSm,
       ]}
       accessibilityRole="text"
-      accessibilityLabel={`Tingkat kepadatan: ${label}`}
+      accessibilityLabel={t('status.occupancy.accessibility', { level: label })}
     >
       <Users
         size={isSm ? iconSizes.inline : iconSizes.badge}

@@ -115,7 +115,7 @@ export default function RegisterScreen() {
     AccessibilityInfo.announceForAccessibility(
       t('register.successMessage', { ns: 'auth' }),
     );
-    router.replace('/home');
+    router.replace('/(tabs)');
   };
 
   return (
