@@ -751,30 +751,11 @@ Do not overengineer the application.
 
 ---
 
-## Commit and Pull Request Guidelines
+## Changes And Report
 
-Use concise, imperative commit subjects.
+For every change you make, you must report and document it by following these steps:
 
-Examples:
-
-```text
-Add destination occupancy cards
-Build simulated route selection
-Add incident rerouting scenario
-Create tourism map markers
-Improve login prototype flow
-```
-
-Keep commits focused on one logical change.
-
-Pull requests should include:
-
-- User-visible changes.
-- Main implementation decisions.
-- Files or modules affected.
-- Verification performed.
-- Known limitations.
-- Screenshots or recordings for UI changes.
-- Simulation assumptions when relevant.
-
-Do not describe simulated integrations as production-ready functionality.
+1. **Report the Change:** Clearly state any modifications you have made.
+2. **Write Documentation:** Detail the specific changes and explain the correlations or impacts they have on the overall project.
+3. **Save to Directory:** Save the documentation in a file within the `docs/changes` directory. If the directory or file does not exist, you must create it first.
+4. **Language Requirement:** All written documentation must be in **Bahasa Indonesia**.
