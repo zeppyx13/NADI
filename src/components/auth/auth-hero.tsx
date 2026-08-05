@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import { AppText } from '@/components/ui';
+import { PhotoAttribution } from '@/components/media/photo-attribution';
 import {
   colors,
   gradients,
@@ -19,7 +20,6 @@ import {
 import { useAuthHeroImage } from '@/hooks/use-auth-hero-image';
 
 import { LanguageSelector } from './language-selector';
-import { PhotoAttribution } from './photo-attribution';
 
 type AuthHeroProps = {
   onBack?: () => void;
@@ -91,7 +91,19 @@ export function AuthHero({ onBack }: AuthHeroProps) {
         </View>
 
         <View style={styles.attributionSlot}>
-          {photo && shouldRenderImage && <PhotoAttribution photo={photo} />}
+          {photo && shouldRenderImage && (
+            <PhotoAttribution
+              photo={photo}
+              credit={t('hero.photoCredit', {
+                ns: 'auth',
+                name: photo.user.name,
+              })}
+              accessibilityLabel={t('hero.photoCreditAccessibility', {
+                ns: 'auth',
+                name: photo.user.name,
+              })}
+            />
+          )}
         </View>
       </SafeAreaView>
     </LinearGradient>

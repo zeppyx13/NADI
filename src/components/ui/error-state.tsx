@@ -9,9 +9,15 @@ export type ErrorStateProps = {
   title?: string;
   description: string;
   onRetry?: () => void;
+  retryLabel?: string;
 };
 
-export function ErrorState({ title = 'Terjadi Kesalahan', description, onRetry }: ErrorStateProps) {
+export function ErrorState({
+  title = 'Terjadi Kesalahan',
+  description,
+  onRetry,
+  retryLabel = 'Coba Lagi',
+}: ErrorStateProps) {
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
@@ -26,7 +32,7 @@ export function ErrorState({ title = 'Terjadi Kesalahan', description, onRetry }
       {onRetry && (
         <View style={styles.actionContainer}>
           <AppButton 
-            label="Coba Lagi" 
+            label={retryLabel}
             onPress={onRetry} 
             variant="secondary"
           />

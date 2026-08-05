@@ -3,11 +3,13 @@ import { initReactI18next } from 'react-i18next';
 
 import { authEn } from './locales/en/auth';
 import { commonEn } from './locales/en/common';
+import { homeEn } from './locales/en/home';
 import { navigationEn } from './locales/en/navigation';
 import { screensEn } from './locales/en/screens';
 import { validationEn } from './locales/en/validation';
 import { authId } from './locales/id/auth';
 import { commonId } from './locales/id/common';
+import { homeId } from './locales/id/home';
 import { navigationId } from './locales/id/navigation';
 import { screensId } from './locales/id/screens';
 import { validationId } from './locales/id/validation';
@@ -17,6 +19,7 @@ import type { SupportedLanguage } from './types';
 export const resources = {
   id: {
     common: commonId,
+    home: homeId,
     auth: authId,
     navigation: navigationId,
     screens: screensId,
@@ -24,6 +27,7 @@ export const resources = {
   },
   en: {
     common: commonEn,
+    home: homeEn,
     auth: authEn,
     navigation: navigationEn,
     screens: screensEn,

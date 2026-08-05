@@ -14,6 +14,7 @@ export type Destination = {
   name: string;
   region: string;
   category: DestinationCategory;
+  imageQuery: string;
   latitude: number;
   longitude: number;
   occupancyLevel: OccupancyLevel;

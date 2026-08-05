@@ -61,8 +61,8 @@ export function AppButton({
   };
 
   const getHeight = () => {
-    if (size === 'sm') return 36;
-    if (size === 'md') return 44;
+    if (size === 'sm') return layout.minTouchTarget;
+    if (size === 'md') return layout.minTouchTarget;
     return 50;
   };
 

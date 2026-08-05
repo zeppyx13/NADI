@@ -1,5 +1,11 @@
 import React, { type ReactNode } from 'react';
-import { View, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import {
+  View,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { colors, radii, shadows, spacing } from '@/constants/theme';
 
 type CardVariant = 'default' | 'elevated' | 'outlined' | 'soft';
@@ -7,7 +13,7 @@ type CardVariant = 'default' | 'elevated' | 'outlined' | 'soft';
 export type AppCardProps = {
   children: ReactNode;
   variant?: CardVariant;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   accessibilityLabel?: string;
 };
@@ -33,21 +39,31 @@ export function AppCard({
     }
   };
 
-  const RootComponent = onPress ? Pressable : View;
+  const cardStyle = [getCardStyle(), style];
+
+  if (onPress) {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          cardStyle,
+          pressed && styles.pressed,
+        ]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      >
+        {children}
+      </Pressable>
+    );
+  }
 
   return (
-    <RootComponent 
-      style={({ pressed }) => [
-        getCardStyle(),
-        style,
-        onPress && pressed && { opacity: 0.8 }
-      ]}
-      onPress={onPress}
-      accessibilityRole={onPress ? 'button' : undefined}
+    <View
+      style={cardStyle}
       accessibilityLabel={accessibilityLabel}
     >
       {children}
-    </RootComponent>
+    </View>
   );
 }
 
@@ -73,5 +89,8 @@ const styles = StyleSheet.create({
   },
   soft: {
     backgroundColor: colors.neutral.surfaceMuted,
+  },
+  pressed: {
+    opacity: 0.8,
   },
 });

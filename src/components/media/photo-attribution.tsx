@@ -1,19 +1,29 @@
 import * as Linking from 'expo-linking';
 import { ExternalLink } from 'lucide-react-native';
 import { Pressable, StyleSheet } from 'react-native';
-import { useTranslation } from 'react-i18next';
 
 import { AppText } from '@/components/ui';
 import { colors, iconSizes, layout, spacing } from '@/constants/theme';
 import { appendUnsplashUtm } from '@/services/unsplash';
 import type { UnsplashPhoto } from '@/types/unsplash';
 
-type PhotoAttributionProps = {
+export type PhotoAttributionProps = {
   photo: UnsplashPhoto;
+  credit: string;
+  accessibilityLabel: string;
+  tone?: 'light' | 'surface';
+  compact?: boolean;
 };
 
-export function PhotoAttribution({ photo }: PhotoAttributionProps) {
-  const { t } = useTranslation('auth');
+export function PhotoAttribution({
+  photo,
+  credit,
+  accessibilityLabel,
+  tone = 'light',
+  compact = false,
+}: PhotoAttributionProps) {
+  const foreground =
+    tone === 'light' ? colors.neutral.white : colors.neutral.textSecondary;
 
   const handlePress = async () => {
     try {
@@ -26,15 +36,24 @@ export function PhotoAttribution({ photo }: PhotoAttributionProps) {
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={t('hero.photoCreditAccessibility', { name: photo.user.name })}
+      accessibilityLabel={accessibilityLabel}
       hitSlop={spacing[1]}
       onPress={() => void handlePress()}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.container,
+        compact && styles.compact,
+        pressed && styles.pressed,
+      ]}
     >
-      <AppText variant="caption" color={colors.neutral.white} numberOfLines={2}>
-        {t('hero.photoCredit', { name: photo.user.name })}
+      <AppText
+        variant="caption"
+        color={foreground}
+        numberOfLines={compact ? 1 : 2}
+        style={styles.credit}
+      >
+        {credit}
       </AppText>
-      <ExternalLink size={iconSizes.inline} color={colors.neutral.white} />
+      <ExternalLink size={iconSizes.inline} color={foreground} />
     </Pressable>
   );
 }
@@ -46,6 +65,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[1],
+  },
+  compact: {
+    maxWidth: '100%',
+  },
+  credit: {
+    flexShrink: 1,
   },
   pressed: {
     opacity: 0.68,

@@ -77,6 +77,10 @@ export const travelAlerts: readonly TravelAlert[] = [
     longitude: 115.2625,
     severity: 'info',
     createdAt: '2026-08-04T07:20:00+08:00',
+    activeWindow: {
+      startsAt: '2026-08-05T16:00:00+08:00',
+      endsAt: '2026-08-05T20:00:00+08:00',
+    },
     isRead: true,
   },
 ] as const;

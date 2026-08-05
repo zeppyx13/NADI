@@ -20,5 +20,9 @@ export type TravelAlert = {
   longitude: number;
   severity: AlertSeverity;
   createdAt: string;
+  activeWindow?: {
+    startsAt: string;
+    endsAt: string;
+  };
   isRead: boolean;
 };

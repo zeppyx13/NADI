@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
-import { colors, spacing } from '@/constants/theme';
+import { colors, layout, spacing } from '@/constants/theme';
 import { AppText } from './app-text';
 
 export type SectionHeaderProps = {
@@ -54,6 +54,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actionButton: {
+    minHeight: layout.minTouchTarget,
+    justifyContent: 'center',
     paddingLeft: spacing[4],
     paddingVertical: spacing[2],
   },

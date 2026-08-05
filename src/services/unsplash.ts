@@ -1,11 +1,9 @@
 import { isUnsplashPhoto, type UnsplashPhoto } from '@/types/unsplash';
 
-const UNSPLASH_RANDOM_PHOTO_ENDPOINT =
-  'https://api.unsplash.com/photos/random' +
-  '?query=Bali%20Indonesia%20travel' +
-  '&orientation=portrait' +
-  '&content_filter=high';
+const UNSPLASH_RANDOM_PHOTO_ENDPOINT = 'https://api.unsplash.com/photos/random';
 const REQUEST_TIMEOUT_MS = 8_000;
+
+type UnsplashOrientation = 'landscape' | 'portrait';
 
 function isHttpsUrl(value: string): boolean {
   try {
@@ -20,7 +18,19 @@ export function appendUnsplashUtm(url: string): string {
   return `${url}${separator}utm_source=nadi&utm_medium=referral`;
 }
 
-export async function fetchRandomAuthPhoto(
+function buildRandomPhotoEndpoint(
+  query: string,
+  orientation: UnsplashOrientation,
+): string {
+  return (
+    `${UNSPLASH_RANDOM_PHOTO_ENDPOINT}?query=${encodeURIComponent(query)}` +
+    `&orientation=${orientation}&content_filter=high`
+  );
+}
+
+async function fetchRandomPhoto(
+  query: string,
+  orientation: UnsplashOrientation,
   signal?: AbortSignal,
 ): Promise<UnsplashPhoto | null> {
   const accessKey = process.env.EXPO_PUBLIC_UNSPLASH_ACCESS_KEY?.trim();
@@ -35,7 +45,7 @@ export async function fetchRandomAuthPhoto(
   const timeout = setTimeout(() => requestController.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(UNSPLASH_RANDOM_PHOTO_ENDPOINT, {
+    const response = await fetch(buildRandomPhotoEndpoint(query, orientation), {
       method: 'GET',
       headers: {
         Authorization: `Client-ID ${accessKey}`,
@@ -64,4 +74,17 @@ export async function fetchRandomAuthPhoto(
     clearTimeout(timeout);
     signal?.removeEventListener('abort', handleExternalAbort);
   }
+}
+
+export function fetchRandomAuthPhoto(
+  signal?: AbortSignal,
+): Promise<UnsplashPhoto | null> {
+  return fetchRandomPhoto('Bali Indonesia travel', 'portrait', signal);
+}
+
+export function fetchRandomDestinationPhoto(
+  query: string,
+  signal?: AbortSignal,
+): Promise<UnsplashPhoto | null> {
+  return fetchRandomPhoto(query, 'landscape', signal);
 }
