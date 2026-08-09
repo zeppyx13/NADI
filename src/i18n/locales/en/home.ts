@@ -38,11 +38,18 @@ export const homeEn = {
   activeJourney: {
     title: 'Active journey',
     headingTo: 'Heading to {{destination}}',
-    metadata: '{{minutes}} min · {{distance}} km',
+    metadata: '{{minutes}} min to next stop · {{count}} destinations',
     continue: 'Continue journey',
     smooth: 'Travel conditions are smooth',
     moderate: 'The journey has moderate congestion',
     disrupted: 'The journey is affected by a disruption',
+  },
+
+  plannedJourney: {
+    title: 'Today’s travel plan',
+    metadata: '{{date}} · {{count}} destinations',
+    description: 'This plan is approved and ready to start.',
+    open: 'View plan',
   },
 
   planJourney: {
@@ -50,6 +57,7 @@ export const homeEn = {
     description:
       'Choose a destination and find a route that matches current travel conditions.',
     action: 'Start planning',
+    openAll: 'View all travel plans',
   },
 
   recommendations: {

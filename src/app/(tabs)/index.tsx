@@ -23,11 +23,13 @@ import {
   SearchField,
 } from '@/components/ui';
 import { colors, iconSizes, spacing } from '@/constants/theme';
+import { useItineraries } from '@/context/itinerary-context';
 import { travelAlerts } from '@/data/alerts';
 import { destinations } from '@/data/destinations';
 import { useHomeDashboard } from '@/hooks/use-home-dashboard';
 import type { HomeDestinationInsight } from '@/types/home';
 import type { AlertSeverity, TravelAlert } from '@/types/travel-alert';
+import { getLocalDateInput } from '@/utils/itinerary';
 
 const severityPriority: Record<AlertSeverity, number> = {
   danger: 3,
@@ -62,16 +64,18 @@ export default function HomeScreen() {
   const { t } = useTranslation('home');
   const router = useRouter();
   const { status, data, retry } = useHomeDashboard();
+  const { itineraries, activeItinerary, isHydrated } = useItineraries();
 
   const openExplore = () => router.push('/(tabs)/explore');
   const openMap = () => router.push('/(tabs)/map');
   const openAlerts = () => router.push('/(tabs)/alerts');
+  const openItineraryHub = () => router.push('/itinerary');
   const openDestination = (destinationId: string) =>
     router.push({ pathname: '/(tabs)/map', params: { destinationId } });
   const openAlertOnMap = (alertId: string) =>
     router.push({ pathname: '/(tabs)/map', params: { alertId } });
 
-  if (status === 'loading') {
+  if (status === 'loading' || !isHydrated) {
     return (
       <ScreenContainer>
         <LoadingState
@@ -127,6 +131,27 @@ export default function HomeScreen() {
     recommendationItems.length !== data.recommendedDestinationIds.length ||
     nearbyItems.length !== data.nearbyDestinationIds.length ||
     localContexts.length !== data.localContextIds.length;
+  const todayItinerary =
+    activeItinerary ??
+    itineraries.find(
+      (itinerary) =>
+        itinerary.status === 'approved' && itinerary.date === getLocalDateInput(),
+    ) ??
+    null;
+  const openJourney = () => {
+    if (!todayItinerary) {
+      router.push('/itinerary/create');
+      return;
+    }
+    if (todayItinerary.status === 'active') {
+      router.push({
+        pathname: '/(tabs)/map',
+        params: { itineraryId: todayItinerary.id },
+      });
+      return;
+    }
+    router.push({ pathname: '/itinerary/[id]', params: { id: todayItinerary.id } });
+  };
 
   return (
     <ScreenContainer scroll style={styles.screen}>
@@ -167,9 +192,19 @@ export default function HomeScreen() {
       )}
 
       <JourneyCard
-        journey={data.activeJourney}
-        onPress={data.activeJourney ? openMap : openExplore}
+        itinerary={todayItinerary}
+        onPress={openJourney}
       />
+
+      <AppText
+        accessibilityRole="link"
+        onPress={openItineraryHub}
+        variant="labelMd"
+        color={colors.brand[600]}
+        style={styles.itineraryLink}
+      >
+        {t('planJourney.openAll')}
+      </AppText>
 
       <View>
         <RecommendationCarousel
@@ -207,5 +242,9 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  itineraryLink: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing[2],
   },
 });

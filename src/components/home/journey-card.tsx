@@ -5,17 +5,18 @@ import { useTranslation } from 'react-i18next';
 import { RouteModeBadge } from '@/components/route/route-mode-badge';
 import { AppButton, AppCard, AppText } from '@/components/ui';
 import { colors, iconSizes, radii, spacing } from '@/constants/theme';
-import type { ActiveJourney } from '@/types/home';
+import type { Itinerary } from '@/types/itinerary';
+import { formatItineraryDate } from '@/utils/itinerary';
 
 export type JourneyCardProps = {
-  journey: ActiveJourney | null;
+  itinerary: Itinerary | null;
   onPress: () => void;
 };
 
-export function JourneyCard({ journey, onPress }: JourneyCardProps) {
+export function JourneyCard({ itinerary, onPress }: JourneyCardProps) {
   const { t, i18n } = useTranslation('home');
 
-  if (!journey) {
+  if (!itinerary) {
     return (
       <AppCard variant="soft" style={styles.card}>
         <View style={styles.headingRow}>
@@ -42,38 +43,46 @@ export function JourneyCard({ journey, onPress }: JourneyCardProps) {
     );
   }
 
-  const formattedDistance = new Intl.NumberFormat(
-    i18n.language === 'id' ? 'id-ID' : 'en-US',
-    { maximumFractionDigits: 1 },
-  ).format(journey.distanceKm);
+  const plan = itinerary.approvedPlan ?? itinerary.originalPlan;
+  const nextStop = plan.stops.find(
+    (stop) => stop.status !== 'completed' && stop.status !== 'skipped',
+  );
+  const isActive = itinerary.status === 'active';
 
   return (
     <AppCard variant="elevated" style={styles.card}>
       <View style={styles.titleRow}>
         <View style={styles.copy}>
           <AppText variant="caption" color={colors.brand[600]}>
-            {t('activeJourney.title')}
+            {t(isActive ? 'activeJourney.title' : 'plannedJourney.title')}
           </AppText>
           <AppText variant="headingSm">
-            {t('activeJourney.headingTo', {
-              destination: journey.destinationName,
-            })}
+            {isActive
+              ? t('activeJourney.headingTo', {
+                  destination: nextStop?.destinationNameSnapshot ?? itinerary.title,
+                })
+              : itinerary.title}
           </AppText>
         </View>
-        <RouteModeBadge mode={journey.routeMode} />
+        <RouteModeBadge mode={itinerary.preferences.routePreference} />
       </View>
       <AppText variant="labelMd" color={colors.brand[700]}>
-        {t('activeJourney.metadata', {
-          minutes: journey.etaMinutes,
-          distance: formattedDistance,
-        })}
+        {isActive
+          ? t('activeJourney.metadata', {
+              minutes: nextStop?.routeToStop?.estimatedTravelMinutes ?? 0,
+              count: plan.stops.length,
+            })
+          : t('plannedJourney.metadata', {
+              date: formatItineraryDate(itinerary.date, i18n.language),
+              count: plan.stops.length,
+            })}
       </AppText>
       <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-        {t(`activeJourney.${journey.status}`)}
+        {t(isActive ? 'activeJourney.smooth' : 'plannedJourney.description')}
       </AppText>
       <AppButton
         fullWidth
-        label={t('activeJourney.continue')}
+        label={t(isActive ? 'activeJourney.continue' : 'plannedJourney.open')}
         leadingIcon={
           <Navigation size={iconSizes.button} color={colors.neutral.white} />
         }

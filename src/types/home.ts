@@ -1,4 +1,4 @@
-import type { OccupancyLevel, RouteMode } from '@/constants/theme';
+import type { OccupancyLevel } from '@/constants/theme';
 
 export type TravelConditionStatus = 'smooth' | 'moderate' | 'attention';
 
@@ -8,18 +8,6 @@ export type TravelConditionSummary = {
   activeIncidentCount: number;
   nearbyDestinationCount: number;
   updatedAt: string;
-};
-
-export type JourneyStatus = 'smooth' | 'moderate' | 'disrupted';
-
-export type ActiveJourney = {
-  id: string;
-  destinationId: string;
-  destinationName: string;
-  etaMinutes: number;
-  distanceKm: number;
-  routeMode: RouteMode;
-  status: JourneyStatus;
 };
 
 export type HomeRecommendationReason =
@@ -45,7 +33,6 @@ export type HomeDashboardData = {
   conditionSummary: TravelConditionSummary;
   featuredAlertId: string | null;
   featuredAlertDistanceKm: number | null;
-  activeJourney: ActiveJourney | null;
   recommendedDestinationIds: readonly string[];
   nearbyDestinationIds: readonly string[];
   localContextIds: readonly string[];

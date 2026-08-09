@@ -27,6 +27,11 @@ export type MapInfoPanelProps = {
   onViewDetail: () => void;
   onRouteModeChange: (mode: RouteMode) => void;
   onStartJourney: () => void;
+  journeyActionLabel?: string;
+  secondaryJourneyAction?: {
+    label: string;
+    onPress: () => void;
+  };
 };
 
 const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
@@ -40,6 +45,8 @@ export function MapInfoPanel({
   onViewDetail,
   onRouteModeChange,
   onStartJourney,
+  journeyActionLabel,
+  secondaryJourneyAction,
 }: MapInfoPanelProps) {
   const { t } = useTranslation('screens');
 
@@ -157,10 +164,18 @@ export function MapInfoPanel({
       <AppButton
         fullWidth
         variant="teal"
-        label={t('map.panel.startJourney')}
+        label={journeyActionLabel ?? t('map.panel.startJourney')}
         leadingIcon={<Navigation size={iconSizes.button} color={colors.neutral.white} />}
         onPress={onStartJourney}
       />
+      {secondaryJourneyAction && (
+        <AppButton
+          fullWidth
+          variant="secondary"
+          label={secondaryJourneyAction.label}
+          onPress={secondaryJourneyAction.onPress}
+        />
+      )}
     </AppCard>
   );
 }

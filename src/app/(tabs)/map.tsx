@@ -26,8 +26,11 @@ import {
   spacing,
   type RouteMode,
 } from '@/constants/theme';
+import { useItineraries } from '@/context/itinerary-context';
+import { travelAlerts } from '@/data/alerts';
 import { destinations } from '@/data/destinations';
 import type { Destination } from '@/types/destination';
+import { isEventRelevantToItinerary } from '@/utils/itinerary';
 
 type MapFilter = 'all' | 'destinations' | 'crowded' | 'safe' | 'incidents';
 
@@ -40,29 +43,54 @@ const mapFilters: readonly MapFilter[] = [
 ];
 
 export default function MapScreen() {
-  const { t } = useTranslation('screens');
+  const { t } = useTranslation(['screens', 'itinerary']);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { activeItinerary, getItinerary } = useItineraries();
   const params = useLocalSearchParams<{
     destinationId?: string;
     alertId?: string;
+    itineraryId?: string;
   }>();
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<MapFilter>('all');
   const [mode, setMode] = useState<MapScreenMode>('explore');
   const [selectedDestination, setSelectedDestination] = useState<Destination>();
-  const [routeMode, setRouteMode] = useState<RouteMode>('balanced');
+  const [routeModeOverride, setRouteModeOverride] = useState<RouteMode | null>(null);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [locationSignal, setLocationSignal] = useState(0);
+  const requestedItinerary = params.itineraryId
+    ? getItinerary(params.itineraryId)
+    : null;
+  const mapItinerary =
+    requestedItinerary?.status === 'active' ? requestedItinerary : activeItinerary;
+  const itineraryPlan = mapItinerary?.approvedPlan ?? null;
+  const nextItineraryStop = itineraryPlan?.stops.find(
+    (stop) => stop.status !== 'completed' && stop.status !== 'skipped',
+  );
+  const itineraryDestination = destinations.find(
+    (item) => item.id === nextItineraryStop?.destinationId,
+  );
   const parameterDestination = destinations.find(
     (item) => item.id === params.destinationId,
   );
-  const displayedDestination = parameterDestination ?? selectedDestination;
+  const displayedDestination =
+    parameterDestination ?? selectedDestination ?? itineraryDestination;
   const displayedMode =
-    parameterDestination && parameterDestination.id !== selectedDestination?.id
+    mapItinerary && displayedDestination?.id === itineraryDestination?.id
+      ? 'route-preview'
+      : parameterDestination && parameterDestination.id !== selectedDestination?.id
       ? 'destination-selected'
       : mode;
   const displayedFilter = params.alertId ? 'incidents' : activeFilter;
+  const selectedAlert = travelAlerts.find((alert) => alert.id === params.alertId);
+  const canReoptimize = Boolean(
+    mapItinerary &&
+      selectedAlert &&
+      isEventRelevantToItinerary(selectedAlert, mapItinerary),
+  );
+  const routeMode =
+    routeModeOverride ?? mapItinerary?.preferences.routePreference ?? 'balanced';
 
   const visibleDestinations = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -81,6 +109,11 @@ export default function MapScreen() {
       return displayedFilter !== 'incidents' && matchesQuery && matchesFilter;
     });
   }, [displayedFilter, query]);
+  const canvasDestinations =
+    itineraryDestination &&
+    !visibleDestinations.some((destination) => destination.id === itineraryDestination.id)
+      ? [...visibleDestinations, itineraryDestination]
+      : visibleDestinations;
 
   const selectDestination = (destination: Destination) => {
     router.setParams({ destinationId: undefined, alertId: undefined });
@@ -96,6 +129,10 @@ export default function MapScreen() {
   };
 
   const startJourney = () => {
+    if (mapItinerary) {
+      router.push({ pathname: '/itinerary/[id]', params: { id: mapItinerary.id } });
+      return;
+    }
     if (!displayedDestination) return;
     Alert.alert(
       t('map.journeyReadyTitle'),
@@ -109,7 +146,7 @@ export default function MapScreen() {
   return (
     <View style={styles.screen}>
       <MapCanvas
-        destinations={visibleDestinations}
+        destinations={canvasDestinations}
         selectedDestination={displayedDestination}
         showIncident={displayedFilter === 'all' || displayedFilter === 'incidents'}
         showCrowdedArea={displayedFilter === 'all' || displayedFilter === 'crowded'}
@@ -205,8 +242,25 @@ export default function MapScreen() {
             }
           }}
           onViewDetail={showUnavailableDetail}
-          onRouteModeChange={setRouteMode}
+          onRouteModeChange={setRouteModeOverride}
           onStartJourney={startJourney}
+          journeyActionLabel={
+            mapItinerary
+              ? t('map.openItinerary', { ns: 'itinerary' })
+              : undefined
+          }
+          secondaryJourneyAction={
+            canReoptimize && mapItinerary
+              ? {
+                  label: t('map.reviewChange', { ns: 'itinerary' }),
+                  onPress: () =>
+                    router.push({
+                      pathname: '/itinerary/[id]/reoptimize',
+                      params: { id: mapItinerary.id },
+                    }),
+                }
+              : undefined
+          }
         />
       </View>
     </View>

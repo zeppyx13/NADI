@@ -15,6 +15,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 
 import { colors } from '@/constants/theme';
+import { ItineraryProvider } from '@/context/itinerary-context';
 import { bootstrapI18n } from '@/i18n';
 
 SplashScreen.preventAutoHideAsync();
@@ -53,15 +54,17 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: styles.content,
-          }}
-        />
-      </View>
+      <ItineraryProvider>
+        <View style={styles.root}>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: styles.content,
+            }}
+          />
+        </View>
+      </ItineraryProvider>
     </SafeAreaProvider>
   );
 }

@@ -14,7 +14,6 @@ export const homeDashboardData: HomeDashboardData = {
   },
   featuredAlertId: 'incident-denpasar-01',
   featuredAlertDistanceKm: 2.4,
-  activeJourney: null,
   recommendedDestinationIds: ['ubud', 'tanah-lot', 'pura-besakih'],
   nearbyDestinationIds: ['pantai-kuta', 'ubud', 'tanah-lot'],
   localContextIds: ['event-ubud-01'],

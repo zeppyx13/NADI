@@ -38,11 +38,18 @@ export const homeId = {
   activeJourney: {
     title: 'Perjalanan aktif',
     headingTo: 'Menuju {{destination}}',
-    metadata: '{{minutes}} menit · {{distance}} km',
+    metadata: '{{minutes}} menit ke stop berikutnya · {{count}} tujuan',
     continue: 'Lanjutkan perjalanan',
     smooth: 'Kondisi perjalanan lancar',
     moderate: 'Perjalanan mengalami sedikit kepadatan',
     disrupted: 'Perjalanan terdampak gangguan',
+  },
+
+  plannedJourney: {
+    title: 'Rencana perjalanan hari ini',
+    metadata: '{{date}} · {{count}} tujuan',
+    description: 'Rencana sudah disetujui dan siap dimulai.',
+    open: 'Lihat rencana',
   },
 
   planJourney: {
@@ -50,6 +57,7 @@ export const homeId = {
     description:
       'Pilih destinasi dan temukan rute yang sesuai dengan kondisi perjalanan.',
     action: 'Mulai merencanakan',
+    openAll: 'Lihat semua rencana perjalanan',
   },
 
   recommendations: {
