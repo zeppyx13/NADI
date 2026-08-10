@@ -1,9 +1,8 @@
-import { Activity } from 'lucide-react-native';
+import { Activity, ChevronRight } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { SimulationBadge } from '@/components/status/simulation-badge';
-import { AppButton, AppCard, AppText } from '@/components/ui';
+import { AppCard, AppText } from '@/components/ui';
 import { colors, iconSizes, radii, spacing } from '@/constants/theme';
 import type { TravelConditionSummary, TravelConditionStatus } from '@/types/home';
 
@@ -34,74 +33,44 @@ export function TravelConditionCard({
   summary,
   onOpenMap,
 }: TravelConditionCardProps) {
-  const { t, i18n } = useTranslation('home');
+  const { t } = useTranslation('home');
   const statusColor = statusColors[summary.status];
-  const updatedTime = new Intl.DateTimeFormat(
-    i18n.language === 'id' ? 'id-ID' : 'en-US',
-    { hour: '2-digit', minute: '2-digit' },
-  ).format(new Date(summary.updatedAt));
+  const summaryLabel = `${t(`travelConditions.${summary.status}Title`)} · ${t(
+    'travelConditions.compactSummary',
+    {
+      crowdedCount: summary.crowdedAreaCount,
+      incidentCount: summary.activeIncidentCount,
+    },
+  )}`;
 
   return (
-    <AppCard variant="elevated" style={styles.card}>
-      <View style={styles.sectionHeading}>
-        <View style={styles.headingCopy}>
-          <AppText variant="headingMd">{t('travelConditions.title')}</AppText>
-          <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-            {t('travelConditions.subtitle')}
-          </AppText>
-        </View>
-        <SimulationBadge label={t('simulationLabel')} />
+    <AppCard
+      variant="soft"
+      accessibilityLabel={`${t('travelConditions.title')}. ${summaryLabel}`}
+      onPress={onOpenMap}
+      style={styles.card}
+    >
+      <View style={[styles.statusIcon, { backgroundColor: statusColor.background }]}>
+        <Activity size={iconSizes.button} color={statusColor.foreground} />
       </View>
-
-      <View style={styles.statusRow}>
-        <View style={[styles.statusIcon, { backgroundColor: statusColor.background }]}>
-          <Activity size={iconSizes.header} color={statusColor.foreground} />
-        </View>
-        <View style={styles.statusCopy}>
-          <AppText variant="headingSm">
-            {t(`travelConditions.${summary.status}Title`)}
-          </AppText>
-          <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-            {t('travelConditions.summary', {
-              crowdedCount: summary.crowdedAreaCount,
-              incidentCount: summary.activeIncidentCount,
-            })}
-          </AppText>
-        </View>
-      </View>
-
-      <View style={styles.footer}>
-        <AppText variant="caption" color={colors.neutral.textMuted}>
-          {t('travelConditions.updatedAt', { time: updatedTime })}
+      <View style={styles.copy}>
+        <AppText variant="labelLg">{t('travelConditions.title')}</AppText>
+        <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+          {summaryLabel}
         </AppText>
-        <AppButton
-          size="sm"
-          variant="secondary"
-          label={t('travelConditions.openMap')}
-          onPress={onOpenMap}
-        />
       </View>
+      <ChevronRight size={iconSizes.button} color={colors.neutral.iconMuted} />
     </AppCard>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    gap: spacing[4],
-  },
-  sectionHeading: {
+    minHeight: 72,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: spacing[3],
-  },
-  headingCopy: {
-    flex: 1,
-    gap: spacing[1],
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing[3],
+    padding: spacing[3],
   },
   statusIcon: {
     width: 44,
@@ -110,15 +79,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radii.md,
   },
-  statusCopy: {
+  copy: {
     flex: 1,
     gap: spacing[1],
-  },
-  footer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing[2],
   },
 });

@@ -10,10 +10,27 @@ import { formatItineraryDate } from '@/utils/itinerary';
 
 export type JourneyCardProps = {
   itinerary: Itinerary | null;
+  isToday?: boolean;
   onPress: () => void;
 };
 
-export function JourneyCard({ itinerary, onPress }: JourneyCardProps) {
+function getRouteSummary(itinerary: Itinerary): string {
+  const plan = itinerary.approvedPlan ?? itinerary.originalPlan;
+  const names = plan.stops
+    .filter((stop) => stop.status !== 'skipped')
+    .map((stop) => stop.destinationNameSnapshot);
+  if (names.length === 0) return itinerary.title;
+
+  const visibleNames = names.slice(0, 3);
+  const hiddenCount = names.length - visibleNames.length;
+  return `${visibleNames.join(' → ')}${hiddenCount > 0 ? ` → +${hiddenCount}` : ''}`;
+}
+
+export function JourneyCard({
+  itinerary,
+  isToday = false,
+  onPress,
+}: JourneyCardProps) {
   const { t, i18n } = useTranslation('home');
 
   if (!itinerary) {
@@ -44,41 +61,51 @@ export function JourneyCard({ itinerary, onPress }: JourneyCardProps) {
   }
 
   const plan = itinerary.approvedPlan ?? itinerary.originalPlan;
-  const nextStop = plan.stops.find(
+  const remainingStops = plan.stops.filter(
     (stop) => stop.status !== 'completed' && stop.status !== 'skipped',
   );
+  const nextStop = remainingStops[0];
   const isActive = itinerary.status === 'active';
+  const travelMinutes = nextStop?.routeToStop?.estimatedTravelMinutes;
+  const activeMetadata =
+    travelMinutes !== undefined
+      ? t('activeJourney.metadata', {
+          minutes: travelMinutes,
+          count: remainingStops.length,
+        })
+      : nextStop
+        ? t('activeJourney.arrivalMetadata', {
+            time: nextStop.plannedArrival,
+            count: remainingStops.length,
+          })
+        : t('activeJourney.destinationCount', { count: remainingStops.length });
 
   return (
     <AppCard variant="elevated" style={styles.card}>
       <View style={styles.titleRow}>
         <View style={styles.copy}>
           <AppText variant="caption" color={colors.brand[600]}>
-            {t(isActive ? 'activeJourney.title' : 'plannedJourney.title')}
+            {isActive
+              ? t('activeJourney.title')
+              : t(isToday ? 'plannedJourney.title' : 'upcomingJourney.title')}
           </AppText>
-          <AppText variant="headingSm">
+          <AppText variant="headingSm" numberOfLines={2}>
             {isActive
               ? t('activeJourney.headingTo', {
                   destination: nextStop?.destinationNameSnapshot ?? itinerary.title,
                 })
-              : itinerary.title}
+              : getRouteSummary(itinerary)}
           </AppText>
         </View>
         <RouteModeBadge mode={itinerary.preferences.routePreference} />
       </View>
       <AppText variant="labelMd" color={colors.brand[700]}>
         {isActive
-          ? t('activeJourney.metadata', {
-              minutes: nextStop?.routeToStop?.estimatedTravelMinutes ?? 0,
-              count: plan.stops.length,
-            })
+          ? activeMetadata
           : t('plannedJourney.metadata', {
               date: formatItineraryDate(itinerary.date, i18n.language),
               count: plan.stops.length,
             })}
-      </AppText>
-      <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-        {t(isActive ? 'activeJourney.smooth' : 'plannedJourney.description')}
       </AppText>
       <AppButton
         fullWidth

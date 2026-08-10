@@ -4,7 +4,6 @@ export const homeId = {
   notificationsWithCount: 'Buka peringatan, {{count}} belum dibaca',
   searchPlaceholder: 'Cari destinasi, area, atau tempat di Bali',
   searchAccessibility: 'Buka pencarian destinasi di Jelajah',
-  simulationLabel: 'Prediksi Sistem',
   partialNotice: 'Sebagian ringkasan belum tersedia. Informasi lain tetap dapat digunakan.',
 
   travelConditions: {
@@ -16,6 +15,8 @@ export const homeId = {
     attentionTitle: 'Beberapa area perlu perhatian',
     summary:
       '{{crowdedCount}} area mengalami kepadatan dan {{incidentCount}} gangguan perjalanan terdeteksi.',
+    compactSummary:
+      '{{crowdedCount}} area padat · {{incidentCount}} gangguan · perkiraan lokal',
     crowdedAreas: 'Area padat',
     incidents: 'Gangguan',
     nearbyDestinations: 'Destinasi',
@@ -33,12 +34,17 @@ export const homeId = {
     alternativeRoute: 'Lihat rute alternatif',
     viewOnMap: 'Lihat di peta',
     distanceAway: '{{distance}} km dari Anda',
+    localEstimate: 'perkiraan lokal',
+    journeyAffected: 'Perjalanan aktif perlu ditinjau',
+    reviewRoute: 'Tinjau perubahan rute',
   },
 
   activeJourney: {
     title: 'Perjalanan aktif',
     headingTo: 'Menuju {{destination}}',
-    metadata: '{{minutes}} menit ke stop berikutnya · {{count}} tujuan',
+    metadata: '{{minutes}} menit ke stop berikutnya · {{count}} tujuan tersisa',
+    arrivalMetadata: 'Tiba pukul {{time}} · {{count}} tujuan tersisa',
+    destinationCount: '{{count}} tujuan tersisa',
     continue: 'Lanjutkan perjalanan',
     smooth: 'Kondisi perjalanan lancar',
     moderate: 'Perjalanan mengalami sedikit kepadatan',
@@ -50,6 +56,10 @@ export const homeId = {
     metadata: '{{date}} · {{count}} tujuan',
     description: 'Rencana sudah disetujui dan siap dimulai.',
     open: 'Lihat rencana',
+  },
+
+  upcomingJourney: {
+    title: 'Rencana perjalanan mendatang',
   },
 
   planJourney: {

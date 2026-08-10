@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   Clock3,
-  MapPin,
   Navigation,
   RefreshCw,
   Route,
@@ -21,12 +20,7 @@ import {
 } from '@/constants/theme';
 import type { Destination } from '@/types/destination';
 import type { ItineraryPlace } from '@/types/itinerary';
-
-export type MapScreenMode =
-  | 'explore'
-  | 'destination-selected'
-  | 'route-preview'
-  | 'active-journey';
+import type { MapInteractionMode } from '@/types/map';
 
 type MapPanelAction = {
   label: string;
@@ -34,16 +28,20 @@ type MapPanelAction = {
 };
 
 export type MapInfoPanelProps = {
-  mode: MapScreenMode;
+  mode: MapInteractionMode;
   selectedDestination?: Destination;
   activePlace?: ItineraryPlace;
   routeMode: RouteMode;
+  selectedTravelMinutes?: number;
   activeArrivalTime?: string;
-  onFindDestination: () => void;
+  activeRemainingCount?: number;
+  activeTravelMinutes?: number;
+  routeOriginName: string;
   onChooseDestination: () => void;
   onViewDetail: () => void;
   onRouteModeChange: (mode: RouteMode) => void;
   onStartJourney: () => void;
+  continueJourneyAction?: MapPanelAction;
   itineraryAction?: MapPanelAction;
   pendingRecommendationAction?: MapPanelAction;
 };
@@ -55,12 +53,16 @@ export function MapInfoPanel({
   selectedDestination,
   activePlace,
   routeMode,
+  selectedTravelMinutes,
   activeArrivalTime,
-  onFindDestination,
+  activeRemainingCount,
+  activeTravelMinutes,
+  routeOriginName,
   onChooseDestination,
   onViewDetail,
   onRouteModeChange,
   onStartJourney,
+  continueJourneyAction,
   itineraryAction,
   pendingRecommendationAction,
 }: MapInfoPanelProps) {
@@ -68,72 +70,90 @@ export function MapInfoPanel({
 
   let panel: ReactNode;
 
-  if (mode === 'active-journey' && (selectedDestination || activePlace)) {
+  if (
+    (mode === 'active-journey' || mode === 'reoptimization-pending') &&
+    (selectedDestination || activePlace)
+  ) {
     panel = (
       <AppCard variant="elevated" style={styles.panel}>
         <View style={styles.titleRow}>
           <View style={styles.copy}>
             <AppText variant="caption" color={colors.teal[700]}>
-              {t('map.panel.activeJourney', {
-                defaultValue: 'Perjalanan aktif',
-              })}
+              {t('map.panel.nextDestination')}
             </AppText>
             <AppText variant="headingMd">
               {selectedDestination?.name ?? activePlace?.name}
             </AppText>
-            <View style={styles.activeMeta}>
-              {activeArrivalTime && (
-                <View style={styles.inlineMeta}>
-                  <Clock3 size={iconSizes.inline} color={colors.brand[600]} />
-                  <AppText variant="labelMd" color={colors.neutral.textSecondary}>
-                    {t('map.panel.nextArrival', {
-                      time: activeArrivalTime,
-                      defaultValue: 'Tiba {{time}}',
-                    })}
-                  </AppText>
-                </View>
-              )}
-              <View style={styles.inlineMeta}>
-                <Route size={iconSizes.inline} color={colors.teal[700]} />
-                <AppText variant="labelMd" color={colors.teal[700]}>
-                  {t(`map.panel.${routeMode}`)}
-                </AppText>
+            {(activeArrivalTime ||
+              activeTravelMinutes !== undefined ||
+              activeRemainingCount !== undefined) && (
+              <View style={styles.activeMeta}>
+                {activeArrivalTime && (
+                  <View style={styles.inlineMeta}>
+                    <Clock3 size={iconSizes.inline} color={colors.brand[600]} />
+                    <AppText
+                      variant="labelMd"
+                      color={colors.neutral.textSecondary}
+                    >
+                      {t('map.panel.nextArrival', {
+                        time: activeArrivalTime,
+                      })}
+                    </AppText>
+                  </View>
+                )}
+                {(activeTravelMinutes !== undefined ||
+                  activeRemainingCount !== undefined) && (
+                  <View style={styles.inlineMeta}>
+                    <Route size={iconSizes.inline} color={colors.teal[700]} />
+                    <AppText variant="labelMd" color={colors.teal[700]}>
+                      {activeTravelMinutes !== undefined &&
+                        t('map.panel.activeTravelTime', {
+                          minutes: activeTravelMinutes,
+                        })}
+                      {activeTravelMinutes !== undefined &&
+                        activeRemainingCount !== undefined &&
+                        ' · '}
+                      {activeRemainingCount !== undefined &&
+                        t('map.panel.remainingDestinations', {
+                          count: activeRemainingCount,
+                        })}
+                    </AppText>
+                  </View>
+                )}
               </View>
-            </View>
+            )}
           </View>
-          {itineraryAction && (
-            <AppButton
-              size="sm"
-              variant="secondary"
-              label={itineraryAction.label}
-              onPress={itineraryAction.onPress}
-            />
-          )}
         </View>
+        {(itineraryAction ||
+          (mode === 'active-journey' && continueJourneyAction)) && (
+          <View style={styles.actionRow}>
+            {itineraryAction && (
+              <View style={styles.actionItem}>
+                <AppButton
+                  fullWidth
+                  size="sm"
+                  variant="secondary"
+                  label={itineraryAction.label}
+                  onPress={itineraryAction.onPress}
+                />
+              </View>
+            )}
+            {mode === 'active-journey' && continueJourneyAction && (
+              <View style={styles.actionItem}>
+                <AppButton
+                  fullWidth
+                  size="sm"
+                  variant="teal"
+                  label={continueJourneyAction.label}
+                  onPress={continueJourneyAction.onPress}
+                />
+              </View>
+            )}
+          </View>
+        )}
       </AppCard>
     );
-  } else if (mode === 'explore' || !selectedDestination) {
-    panel = (
-      <AppCard variant="elevated" style={styles.panel}>
-        <View style={styles.headingRow}>
-          <View style={styles.headingIcon}>
-            <MapPin size={iconSizes.header} color={colors.brand[600]} />
-          </View>
-          <View style={styles.copy}>
-            <AppText variant="headingSm">{t('map.panel.exploreTitle')}</AppText>
-            <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-              {t('map.searchPlaceholder')}
-            </AppText>
-          </View>
-          <AppButton
-            size="sm"
-            label={t('map.panel.findDestination')}
-            onPress={onFindDestination}
-          />
-        </View>
-      </AppCard>
-    );
-  } else if (mode === 'destination-selected') {
+  } else if (mode === 'destination-selected' && selectedDestination) {
     panel = (
       <AppCard variant="elevated" style={styles.panel}>
         <View style={styles.titleRow}>
@@ -143,7 +163,8 @@ export function MapInfoPanel({
             </AppText>
             <AppText variant="headingMd">{selectedDestination.name}</AppText>
             <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-              {selectedDestination.region}
+              {selectedDestination.regency} ·{' '}
+              {t(`explore.category.${selectedDestination.category}`)}
             </AppText>
           </View>
           {selectedDestination.occupancyLevel && (
@@ -154,7 +175,9 @@ export function MapInfoPanel({
           <Clock3 size={iconSizes.inline} color={colors.brand[600]} />
           <AppText variant="labelMd" color={colors.brand[700]}>
             {t('map.panel.estimate', {
-              minutes: selectedDestination.estimatedTravelMinutes,
+              minutes:
+                selectedTravelMinutes ??
+                selectedDestination.estimatedTravelMinutes,
             })}
           </AppText>
         </View>
@@ -182,7 +205,7 @@ export function MapInfoPanel({
         </View>
       </AppCard>
     );
-  } else {
+  } else if (mode === 'route-preview' && selectedDestination) {
     panel = (
       <AppCard variant="elevated" style={styles.panel}>
         <View style={styles.headingRow}>
@@ -192,12 +215,14 @@ export function MapInfoPanel({
           <View style={styles.copy}>
             <AppText variant="headingSm">{t('map.panel.routeTitle')}</AppText>
             <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-              {t('map.panel.originValue')} → {selectedDestination.name}
+              {routeOriginName} → {selectedDestination.name}
             </AppText>
           </View>
           <AppText variant="labelLg" color={colors.brand[700]}>
             {t('map.panel.etaValue', {
-              minutes: selectedDestination.estimatedTravelMinutes,
+              minutes:
+                selectedTravelMinutes ??
+                selectedDestination.estimatedTravelMinutes,
             })}
           </AppText>
         </View>
@@ -243,17 +268,14 @@ export function MapInfoPanel({
         />
       </AppCard>
     );
+  } else {
+    panel = null;
   }
+
+  if (!panel && !pendingRecommendationAction) return null;
 
   return (
     <View style={styles.container}>
-      <AppText
-        variant="micro"
-        color={colors.neutral.textMuted}
-        style={styles.predictionDisclosure}
-      >
-        {t('map.systemPrediction')}
-      </AppText>
       {pendingRecommendationAction && (
         <View style={styles.reoptimizationBanner}>
           <RefreshCw size={iconSizes.button} color={colors.semantic.warning.text} />
@@ -262,9 +284,7 @@ export function MapInfoPanel({
             color={colors.semantic.warning.text}
             style={styles.bannerCopy}
           >
-            {t('map.pendingRecommendation', {
-              defaultValue: 'Ada perubahan yang disarankan',
-            })}
+            {t('map.pendingRecommendation')}
           </AppText>
           <Pressable
             accessibilityRole="button"
@@ -292,10 +312,6 @@ export function MapInfoPanel({
 const styles = StyleSheet.create({
   container: {
     gap: spacing[2],
-  },
-  predictionDisclosure: {
-    alignSelf: 'flex-end',
-    paddingHorizontal: spacing[2],
   },
   panel: {
     gap: spacing[2],

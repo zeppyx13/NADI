@@ -4,7 +4,6 @@ export const homeEn = {
   notificationsWithCount: 'Open alerts, {{count}} unread',
   searchPlaceholder: 'Search destinations, areas, or places in Bali',
   searchAccessibility: 'Open destination search in Explore',
-  simulationLabel: 'System Prediction',
   partialNotice: 'Part of this summary is unavailable. Other information is still usable.',
 
   travelConditions: {
@@ -16,6 +15,8 @@ export const homeEn = {
     attentionTitle: 'Several areas need attention',
     summary:
       '{{crowdedCount}} areas are crowded and {{incidentCount}} travel disruptions have been detected.',
+    compactSummary:
+      '{{crowdedCount}} crowded areas · {{incidentCount}} disruptions · local estimate',
     crowdedAreas: 'Crowded areas',
     incidents: 'Disruptions',
     nearbyDestinations: 'Destinations',
@@ -33,12 +34,17 @@ export const homeEn = {
     alternativeRoute: 'View an alternative route',
     viewOnMap: 'View on map',
     distanceAway: '{{distance}} km away',
+    localEstimate: 'local estimate',
+    journeyAffected: 'Your active journey needs review',
+    reviewRoute: 'Review route change',
   },
 
   activeJourney: {
     title: 'Active journey',
     headingTo: 'Heading to {{destination}}',
-    metadata: '{{minutes}} min to next stop · {{count}} destinations',
+    metadata: '{{minutes}} min to next stop · {{count}} destinations remaining',
+    arrivalMetadata: 'Arrive at {{time}} · {{count}} destinations remaining',
+    destinationCount: '{{count}} destinations remaining',
     continue: 'Continue journey',
     smooth: 'Travel conditions are smooth',
     moderate: 'The journey has moderate congestion',
@@ -50,6 +56,10 @@ export const homeEn = {
     metadata: '{{date}} · {{count}} destinations',
     description: 'This plan is approved and ready to start.',
     open: 'View plan',
+  },
+
+  upcomingJourney: {
+    title: 'Upcoming travel plan',
   },
 
   planJourney: {

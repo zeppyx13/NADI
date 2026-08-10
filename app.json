@@ -38,7 +38,8 @@
       "expo-image",
       "expo-font",
       "expo-status-bar",
-      "expo-localization"
+      "expo-localization",
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true,

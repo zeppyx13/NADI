@@ -1,15 +1,27 @@
-import { MapPin, X } from 'lucide-react-native';
-import { useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
-import MapView, {
-  Marker,
-  type LongPressEvent,
-  type MapPressEvent,
-} from 'react-native-maps';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Camera,
+  GeoJSONSource,
+  Layer,
+  Map,
+  type MapProps,
+  type StyleSpecification,
+} from '@maplibre/maplibre-react-native';
+import { X } from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { Modal, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import { AppButton, AppInput, AppText, IconButton } from '@/components/ui';
+import {
+  baliMapCenter,
+  baliMapZoom,
+  mapConfig,
+  mapFallbackStyle,
+} from '@/constants/map';
 import {
   colors,
   iconSizes,
@@ -21,19 +33,13 @@ import {
 import type { ItineraryPlace } from '@/types/itinerary';
 
 type Coordinate = Pick<ItineraryPlace, 'latitude' | 'longitude'>;
+type MapPressHandler = NonNullable<MapProps['onPress']>;
 
 export type CustomMapPointPickerProps = {
   visible: boolean;
   title?: string;
   onClose: () => void;
   onConfirm: (place: ItineraryPlace) => void;
-};
-
-const baliRegion = {
-  latitude: -8.4095,
-  longitude: 115.1889,
-  latitudeDelta: 1.25,
-  longitudeDelta: 1.05,
 };
 
 export function CustomMapPointPicker({
@@ -43,19 +49,60 @@ export function CustomMapPointPicker({
   onConfirm,
 }: CustomMapPointPickerProps) {
   const { t } = useTranslation('itinerary');
+  const insets = useSafeAreaInsets();
   const [coordinate, setCoordinate] = useState<Coordinate | null>(null);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [activeMapStyle, setActiveMapStyle] = useState<
+    string | StyleSpecification
+  >(mapConfig.style);
+  const [bottomSheetHeight, setBottomSheetHeight] = useState(0);
+  const mapBottomInset =
+    bottomSheetHeight + insets.bottom + spacing[3] + spacing[2];
 
   const initialize = () => {
     setCoordinate(null);
     setName('');
     setError(null);
+    setActiveMapStyle(mapConfig.style);
   };
 
-  const selectCoordinate = (event: MapPressEvent | LongPressEvent) => {
-    setCoordinate(event.nativeEvent.coordinate);
+  const selectedPoint = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
+    () => ({
+      type: 'FeatureCollection',
+      features: coordinate
+        ? [
+            {
+              type: 'Feature',
+              id: 'selected-custom-point',
+              geometry: {
+                type: 'Point',
+                coordinates: [coordinate.longitude, coordinate.latitude],
+              },
+              properties: {},
+            },
+          ]
+        : [],
+    }),
+    [coordinate],
+  );
+
+  const selectCoordinate: MapPressHandler = (event) => {
+    const [longitude, latitude] = event.nativeEvent.lngLat;
+    setCoordinate({ latitude, longitude });
     setError(null);
+  };
+
+  const handleMapLoadFailure = () => {
+    if (activeMapStyle === mapFallbackStyle) return;
+    setActiveMapStyle(mapFallbackStyle);
+  };
+
+  const handleBottomSheetLayout = (event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+    setBottomSheetHeight((current) =>
+      current === nextHeight ? current : nextHeight,
+    );
   };
 
   const confirm = () => {
@@ -82,24 +129,62 @@ export function CustomMapPointPicker({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <MapView
+        <Map
           style={StyleSheet.absoluteFill}
-          initialRegion={baliRegion}
-          showsCompass={false}
-          showsMyLocationButton={false}
-          toolbarEnabled={false}
+          mapStyle={activeMapStyle}
+          compass={false}
+          scaleBar={false}
+          touchPitch={false}
+          touchRotate={false}
+          contentInset={{
+            top: 0,
+            right: 0,
+            bottom: mapBottomInset,
+            left: 0,
+          }}
+          attributionPosition={{
+            left: spacing[2],
+            bottom: mapBottomInset + spacing[1],
+          }}
+          logoPosition={{
+            left: spacing[2],
+            bottom: mapBottomInset + spacing[8],
+          }}
           accessibilityLabel={t('customPoint.mapAccessibility')}
           onPress={selectCoordinate}
           onLongPress={selectCoordinate}
+          onDidFailLoadingMap={handleMapLoadFailure}
         >
+          <Camera
+            initialViewState={{
+              center: [...baliMapCenter],
+              zoom: baliMapZoom,
+            }}
+          />
           {coordinate && (
-            <Marker coordinate={coordinate} title={name || t('customPoint.defaultName')}>
-              <View style={styles.marker}>
-                <MapPin size={iconSizes.button} color={colors.neutral.white} />
-              </View>
-            </Marker>
+            <GeoJSONSource id="custom-point-source" data={selectedPoint}>
+              <Layer
+                id="custom-point-halo"
+                type="circle"
+                paint={{
+                  'circle-color': colors.neutral.white,
+                  'circle-opacity': 0.95,
+                  'circle-radius': 14,
+                }}
+              />
+              <Layer
+                id="custom-point-marker"
+                type="circle"
+                paint={{
+                  'circle-color': colors.teal[600],
+                  'circle-radius': 9,
+                  'circle-stroke-color': colors.neutral.white,
+                  'circle-stroke-width': 3,
+                }}
+              />
+            </GeoJSONSource>
           )}
-        </MapView>
+        </Map>
 
         <SafeAreaView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
           <View style={styles.header}>
@@ -116,7 +201,7 @@ export function CustomMapPointPicker({
             />
           </View>
 
-          <View style={styles.bottomSheet}>
+          <View style={styles.bottomSheet} onLayout={handleBottomSheetLayout}>
             <AppInput
               label={t('customPoint.nameLabel')}
               placeholder={t('customPoint.namePlaceholder')}
@@ -175,16 +260,5 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
     backgroundColor: colors.neutral.white,
     ...shadows.lg,
-  },
-  marker: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: colors.neutral.white,
-    borderRadius: radii.pill,
-    backgroundColor: colors.teal[600],
-    ...shadows.md,
   },
 });
