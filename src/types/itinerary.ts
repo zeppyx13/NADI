@@ -74,6 +74,17 @@ export type ItineraryLocation = {
   name: string;
   latitude: number;
   longitude: number;
+  source?: ItineraryPlaceSource;
+};
+
+export type ItineraryPlaceSource = 'nadi-destination' | 'custom-map-point';
+
+export type ItineraryPlace = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  source: ItineraryPlaceSource;
 };
 
 export type TravelPreferences = {
@@ -121,6 +132,7 @@ export type ItineraryStop = {
   id: string;
   destinationId: string;
   destinationNameSnapshot: string;
+  place: ItineraryPlace;
   plannedArrival: string;
   plannedDeparture: string;
   visitDurationMinutes: number;
@@ -222,6 +234,7 @@ export type Itinerary = {
 
 export type ManualItineraryStopInput = {
   destinationId: string;
+  place: ItineraryPlace;
   plannedArrival: string;
   visitDurationMinutes: number;
 };

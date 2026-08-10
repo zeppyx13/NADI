@@ -1,12 +1,13 @@
 import { destinations } from '@/data/destinations';
 import {
   destinationScenarioConditions,
-  getTravelMinutes,
+  getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
 import type { Destination } from '@/types/destination';
 import type {
   CreateGeneratedItineraryInput,
   CreateManualItineraryInput,
+  ItineraryLocation,
   ItineraryPlan,
   ItineraryStop,
   RouteRisk,
@@ -15,6 +16,7 @@ import type {
 import {
   addMinutesToTime,
   calculatePlanTotals,
+  getMaximumItineraryStops,
 } from '@/utils/itinerary';
 
 export interface ItineraryGenerationService {
@@ -36,41 +38,34 @@ function getTrafficLevel(destinationId: string): TrafficLevel {
   return destinationScenarioConditions[destinationId]?.trafficLevel ?? 'moderate';
 }
 
-function getVisitDurationMinutes(style: CreateGeneratedItineraryInput['preferences']['travelStyle']) {
-  if (style === 'relaxed') return 105;
-  if (style === 'intensive') return 60;
-  return 90;
-}
-
-function getMaximumStops(input: CreateGeneratedItineraryInput): number {
-  const { durationType, travelStyle } = input.preferences;
-  if (durationType === 'half-day') return travelStyle === 'relaxed' ? 2 : 3;
-  if (durationType === 'one-day') {
-    if (travelStyle === 'relaxed') return 3;
-    if (travelStyle === 'intensive') return 5;
-    return 4;
-  }
-  return 5;
+function getVisitDurationMinutes(
+  destination: Destination,
+  style: CreateGeneratedItineraryInput['preferences']['travelStyle'],
+) {
+  const styleMultiplier = style === 'relaxed' ? 1.15 : style === 'intensive' ? 0.75 : 1;
+  const adjustedMinutes = destination.suggestedVisitMinutes * styleMultiplier;
+  return Math.min(180, Math.max(60, Math.round(adjustedMinutes / 15) * 15));
 }
 
 function orderByNearestNeighbor(
   candidates: Destination[],
-  startLocationId: string | undefined,
+  startLocation: ItineraryLocation,
 ): Destination[] {
   const remaining = [...candidates];
   const ordered: Destination[] = [];
-  let previousId = startLocationId ?? 'denpasar';
+  let previousLocation: ItineraryLocation = startLocation;
 
   while (remaining.length > 0) {
     remaining.sort(
       (first, second) =>
-        getTravelMinutes(previousId, first.id) - getTravelMinutes(previousId, second.id) ||
+        getTravelMinutesBetween(previousLocation, first) -
+          getTravelMinutesBetween(previousLocation, second) ||
         first.id.localeCompare(second.id),
     );
     const next = remaining.shift();
     if (!next) break;
     ordered.push(next);
-    previousId = next.id;
+    previousLocation = next;
   }
 
   return ordered;
@@ -84,16 +79,28 @@ function selectDestinations(input: CreateGeneratedItineraryInput): Destination[]
   const matchesInterest = destinations.filter((destination) =>
     input.preferences.interests.includes(destination.category),
   );
-  const safeFallbacks = destinations.filter(
+  const intelligenceBackedFallbacks = destinations.filter(
     (destination) =>
+      destination.intelligenceCoverage === 'pilot' &&
       destinationScenarioConditions[destination.id]?.basePredictedLoadRatio < 0.9,
   );
-  const candidates = [...mustVisit, ...matchesInterest, ...safeFallbacks, ...destinations].filter(
+  const candidates = [
+    ...mustVisit,
+    ...matchesInterest,
+    ...intelligenceBackedFallbacks,
+    ...destinations,
+  ].filter(
     (destination, index, list) =>
       list.findIndex((item) => item.id === destination.id) === index,
   );
-  const selected = candidates.slice(0, getMaximumStops(input));
-  const ordered = orderByNearestNeighbor(selected, input.startLocation.id);
+  const selected = candidates.slice(
+    0,
+    getMaximumItineraryStops(
+      input.preferences.durationType,
+      input.preferences.travelStyle,
+    ),
+  );
+  const ordered = orderByNearestNeighbor(selected, input.startLocation);
 
   return ordered.sort((first, second) => {
     const firstMustVisit = input.preferences.mustVisitDestinationIds.includes(first.id);
@@ -104,13 +111,14 @@ function selectDestinations(input: CreateGeneratedItineraryInput): Destination[]
 }
 
 function createRouteSnapshot(
-  fromId: string | undefined,
-  destinationId: string,
+  from: ItineraryLocation,
+  destination: ItineraryLocation,
   mode: CreateGeneratedItineraryInput['preferences']['routePreference'],
 ) {
+  const destinationId = destination.id ?? destination.name;
   return {
     mode,
-    estimatedTravelMinutes: getTravelMinutes(fromId, destinationId),
+    estimatedTravelMinutes: getTravelMinutesBetween(from, destination),
     trafficLevel: getTrafficLevel(destinationId),
     routeRisk: getRouteRisk(destinationId),
     activeIncidentIds: [
@@ -126,14 +134,17 @@ export class LocalItineraryGenerationService implements ItineraryGenerationServi
     itineraryId = 'generated-draft',
   ): Promise<ItineraryPlan> {
     const selectedDestinations = selectDestinations(input);
-    const visitDurationMinutes = getVisitDurationMinutes(input.preferences.travelStyle);
-    let previousId = input.startLocation.id;
+    let previousLocation: ItineraryLocation = input.startLocation;
     let cursor = input.startTime;
 
     const stops = selectedDestinations.map((destination, index): ItineraryStop => {
+      const visitDurationMinutes = getVisitDurationMinutes(
+        destination,
+        input.preferences.travelStyle,
+      );
       const routeToStop = createRouteSnapshot(
-        previousId,
-        destination.id,
+        previousLocation,
+        destination,
         input.preferences.routePreference,
       );
       const plannedArrival = addMinutesToTime(
@@ -141,13 +152,20 @@ export class LocalItineraryGenerationService implements ItineraryGenerationServi
         routeToStop.estimatedTravelMinutes,
       );
       const plannedDeparture = addMinutesToTime(plannedArrival, visitDurationMinutes);
-      previousId = destination.id;
+      previousLocation = destination;
       cursor = plannedDeparture;
 
       return {
         id: `${itineraryId}-stop-${index + 1}`,
         destinationId: destination.id,
         destinationNameSnapshot: destination.name,
+        place: {
+          id: destination.id,
+          name: destination.name,
+          latitude: destination.latitude,
+          longitude: destination.longitude,
+          source: 'nadi-destination',
+        },
         plannedArrival,
         plannedDeparture,
         visitDurationMinutes,
@@ -163,35 +181,29 @@ export class LocalItineraryGenerationService implements ItineraryGenerationServi
     input: CreateManualItineraryInput,
     itineraryId = 'manual-draft',
   ): Promise<ItineraryPlan> {
-    let previousId = input.startLocation.id;
-    const stops = input.stops.flatMap((stopInput, index): ItineraryStop[] => {
-      const destination = destinations.find(
-        (item) => item.id === stopInput.destinationId,
-      );
-      if (!destination) return [];
-
+    let previousLocation: ItineraryLocation = input.startLocation;
+    const stops = input.stops.map((stopInput, index): ItineraryStop => {
       const routeToStop = createRouteSnapshot(
-        previousId,
-        destination.id,
+        previousLocation,
+        stopInput.place,
         input.routePreference,
       );
-      previousId = destination.id;
+      previousLocation = stopInput.place;
 
-      return [
-        {
-          id: `${itineraryId}-stop-${index + 1}`,
-          destinationId: destination.id,
-          destinationNameSnapshot: destination.name,
-          plannedArrival: stopInput.plannedArrival,
-          plannedDeparture: addMinutesToTime(
-            stopInput.plannedArrival,
-            stopInput.visitDurationMinutes,
-          ),
-          visitDurationMinutes: stopInput.visitDurationMinutes,
-          status: 'upcoming',
-          routeToStop,
-        },
-      ];
+      return {
+        id: `${itineraryId}-stop-${index + 1}`,
+        destinationId: stopInput.destinationId,
+        destinationNameSnapshot: stopInput.place.name,
+        place: stopInput.place,
+        plannedArrival: stopInput.plannedArrival,
+        plannedDeparture: addMinutesToTime(
+          stopInput.plannedArrival,
+          stopInput.visitDurationMinutes,
+        ),
+        visitDurationMinutes: stopInput.visitDurationMinutes,
+        status: 'upcoming',
+        routeToStop,
+      };
     });
 
     return { stops, ...calculatePlanTotals(stops) };

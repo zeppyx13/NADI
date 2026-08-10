@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { MapPinned, Plus } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, MapPinned, Plus } from 'lucide-react-native';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +20,7 @@ export default function ItineraryHubScreen() {
   const { t } = useTranslation('itinerary');
   const router = useRouter();
   const { itineraries, isHydrated } = useItineraries();
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const active = itineraries.filter((itinerary) => itinerary.status === 'active');
   const upcoming = itineraries.filter((itinerary) =>
     ['draft', 'suggested', 'approved'].includes(itinerary.status),
@@ -47,12 +49,14 @@ export default function ItineraryHubScreen() {
         backLabel={t('common.back')}
         onBack={() => router.back()}
       />
-      <AppButton
-        fullWidth
-        label={t('hub.create')}
-        leadingIcon={<Plus size={iconSizes.button} color={colors.neutral.white} />}
-        onPress={() => router.push('/itinerary/create')}
-      />
+      {itineraries.length > 0 && (
+        <AppButton
+          fullWidth
+          label={t('hub.create')}
+          leadingIcon={<Plus size={iconSizes.button} color={colors.neutral.white} />}
+          onPress={() => router.push('/itinerary/create')}
+        />
+      )}
 
       {itineraries.length === 0 ? (
         <EmptyState
@@ -93,16 +97,35 @@ export default function ItineraryHubScreen() {
           )}
           {completed.length > 0 && (
             <View>
-              <SectionHeader title={t('hub.completed')} />
-              <View style={styles.list}>
-                {completed.map((itinerary) => (
-                  <ItineraryCard
-                    key={itinerary.id}
-                    itinerary={itinerary}
-                    onPress={() => openItinerary(itinerary.id)}
-                  />
-                ))}
-              </View>
+              <AppButton
+                fullWidth
+                variant="ghost"
+                label={
+                  isHistoryVisible ? t('hub.hideHistory') : t('hub.showHistory')
+                }
+                trailingIcon={
+                  isHistoryVisible ? (
+                    <ChevronUp size={iconSizes.button} color={colors.brand[600]} />
+                  ) : (
+                    <ChevronDown size={iconSizes.button} color={colors.brand[600]} />
+                  )
+                }
+                onPress={() => setIsHistoryVisible((current) => !current)}
+              />
+              {isHistoryVisible && (
+                <View style={styles.historyBlock}>
+                  <SectionHeader title={t('hub.history')} />
+                  <View style={styles.list}>
+                    {completed.map((itinerary) => (
+                      <ItineraryCard
+                        key={itinerary.id}
+                        itinerary={itinerary}
+                        onPress={() => openItinerary(itinerary.id)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </>
@@ -119,5 +142,8 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: spacing[3],
+  },
+  historyBlock: {
+    marginTop: spacing[3],
   },
 });

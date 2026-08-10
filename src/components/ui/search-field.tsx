@@ -1,7 +1,7 @@
 import React from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { Search, X } from 'lucide-react-native';
-import { colors, iconSizes } from '@/constants/theme';
+import { colors, iconSizes, layout } from '@/constants/theme';
 import { AppInput, type AppInputProps } from './app-input';
 
 export type SearchFieldProps = Omit<AppInputProps, 'leadingIcon' | 'trailingIcon'> & {
@@ -30,6 +30,8 @@ export function SearchField({
             onPress={onClear}
             accessibilityRole="button"
             accessibilityLabel={clearAccessibilityLabel}
+            hitSlop={8}
+            style={styles.clearButton}
           >
             <X size={iconSizes.inline} color={colors.neutral.iconMuted} />
           </Pressable>
@@ -39,3 +41,12 @@ export function SearchField({
     />
   );
 }
+
+const styles = StyleSheet.create({
+  clearButton: {
+    minWidth: layout.minTouchTarget,
+    minHeight: layout.minTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

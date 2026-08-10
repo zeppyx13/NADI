@@ -1,15 +1,22 @@
 import { useRouter } from 'expo-router';
-import { Sparkles } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import {
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Sparkles,
+} from 'lucide-react-native';
+import { useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { CustomMapPointPicker } from '@/components/itinerary/custom-map-point-picker';
+import { DestinationPicker } from '@/components/itinerary/destination-picker';
 import { ItineraryScreenHeader } from '@/components/itinerary/itinerary-screen-header';
+import { NativeDateTimeField } from '@/components/itinerary/native-date-time-field';
 import { SelectionChip } from '@/components/itinerary/selection-chip';
 import {
   AppButton,
   AppCard,
-  AppInput,
   AppText,
   ScreenContainer,
   SectionHeader,
@@ -17,66 +24,82 @@ import {
 import {
   colors,
   iconSizes,
+  layout,
+  motion,
+  radii,
   spacing,
   type RouteMode,
 } from '@/constants/theme';
 import { useItineraries } from '@/context/itinerary-context';
 import { destinations } from '@/data/destinations';
 import { defaultItineraryStartLocation } from '@/data/itinerary-scenarios';
-import type { DestinationCategory } from '@/types/destination';
+import type { Destination, DestinationCategory } from '@/types/destination';
 import type {
   DurationType,
   ItineraryLocation,
+  ItineraryPlace,
   TravelStyle,
 } from '@/types/itinerary';
-import { getLocalDateInput, isIsoDate, parseTimeToMinutes } from '@/utils/itinerary';
+import {
+  getLocalDateInput,
+  getMaximumItineraryStops,
+  getStartOfLocalDay,
+} from '@/utils/itinerary';
+
+type PickerTarget = 'start' | 'must-visit' | null;
 
 const durationOptions: readonly DurationType[] = ['half-day', 'one-day'];
 const interestOptions: readonly DestinationCategory[] = [
   'beach',
   'culture',
   'nature',
-  'spiritual',
   'culinary',
+  'spiritual',
+  'village',
 ];
 const travelStyles: readonly TravelStyle[] = ['relaxed', 'balanced', 'intensive'];
 const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
 
-const startLocations: readonly ItineraryLocation[] = [
-  defaultItineraryStartLocation,
-  ...destinations.map((destination) => ({
+function createInitialJourneyDate() {
+  const date = new Date();
+  date.setHours(8, 0, 0, 0);
+  return date;
+}
+
+function formatTime(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes(),
+  ).padStart(2, '0')}`;
+}
+
+function destinationToLocation(destination: Destination): ItineraryLocation {
+  return {
     id: destination.id,
     name: destination.name,
     latitude: destination.latitude,
     longitude: destination.longitude,
-  })),
-];
+    source: 'nadi-destination',
+  };
+}
 
 export default function TravelPreferencesScreen() {
-  const { t } = useTranslation('itinerary');
+  const { t, i18n } = useTranslation('itinerary');
   const router = useRouter();
   const { createGeneratedDraft } = useItineraries();
-  const [title, setTitle] = useState(t('preferences.defaultTitle'));
-  const [date, setDate] = useState(getLocalDateInput());
+  const [journeyDate, setJourneyDate] = useState(createInitialJourneyDate);
   const [durationType, setDurationType] = useState<DurationType>('one-day');
   const [startLocation, setStartLocation] = useState<ItineraryLocation>(
     defaultItineraryStartLocation,
   );
-  const [startTime, setStartTime] = useState('08:00');
   const [interests, setInterests] = useState<DestinationCategory[]>(['culture']);
   const [travelStyle, setTravelStyle] = useState<TravelStyle>('balanced');
   const [routePreference, setRoutePreference] = useState<RouteMode>('balanced');
   const [mustVisitDestinationIds, setMustVisitDestinationIds] = useState<string[]>([]);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
+  const [isCustomPointOpen, setIsCustomPointOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const validationError = useMemo(() => {
-    if (!title.trim()) return t('validation.title');
-    if (!isIsoDate(date)) return t('validation.date');
-    if (parseTimeToMinutes(startTime) === null) return t('validation.time');
-    if (interests.length === 0) return t('validation.interest');
-    return null;
-  }, [date, interests.length, startTime, t, title]);
 
   const toggleInterest = (interest: DestinationCategory) => {
     setInterests((current) =>
@@ -86,27 +109,57 @@ export default function TravelPreferencesScreen() {
     );
   };
 
-  const toggleMustVisit = (destinationId: string) => {
+  const updateDurationType = (nextDuration: DurationType) => {
+    setDurationType(nextDuration);
     setMustVisitDestinationIds((current) =>
-      current.includes(destinationId)
-        ? current.filter((item) => item !== destinationId)
-        : [...current, destinationId],
+      current.slice(0, getMaximumItineraryStops(nextDuration, travelStyle)),
     );
   };
 
+  const updateTravelStyle = (nextStyle: TravelStyle) => {
+    setTravelStyle(nextStyle);
+    setMustVisitDestinationIds((current) =>
+      current.slice(0, getMaximumItineraryStops(durationType, nextStyle)),
+    );
+  };
+
+  const updateDate = (nextDate: Date) => {
+    setJourneyDate((current) => {
+      const next = new Date(current);
+      next.setFullYear(
+        nextDate.getFullYear(),
+        nextDate.getMonth(),
+        nextDate.getDate(),
+      );
+      return next;
+    });
+  };
+
+  const updateTime = (nextTime: Date) => {
+    setJourneyDate((current) => {
+      const next = new Date(current);
+      next.setHours(nextTime.getHours(), nextTime.getMinutes(), 0, 0);
+      return next;
+    });
+  };
+
   const submit = async () => {
-    if (validationError) {
-      setError(validationError);
+    if (interests.length === 0) {
+      setError(t('validation.interest'));
       return;
     }
     setIsSubmitting(true);
     setError(null);
     try {
+      const formattedTitleDate = new Intl.DateTimeFormat(
+        i18n.language === 'id' ? 'id-ID' : 'en-US',
+        { day: 'numeric', month: 'short' },
+      ).format(journeyDate);
       const itinerary = await createGeneratedDraft({
-        title: title.trim(),
-        date,
+        title: t('preferences.autoTitle', { date: formattedTitleDate }),
+        date: getLocalDateInput(journeyDate),
         startLocation,
-        startTime,
+        startTime: formatTime(journeyDate),
         preferences: {
           durationType,
           interests,
@@ -123,11 +176,22 @@ export default function TravelPreferencesScreen() {
     }
   };
 
+  const openCustomPointPicker = () => {
+    setPickerTarget(null);
+    setTimeout(
+      () => setIsCustomPointOpen(true),
+      Platform.OS === 'ios' ? motion.slow : 0,
+    );
+  };
+
+  const selectedMustVisitNames = mustVisitDestinationIds.flatMap((id) => {
+    const destination = destinations.find((item) => item.id === id);
+    return destination ? [destination.name] : [];
+  });
+  const maximumMustVisit = getMaximumItineraryStops(durationType, travelStyle);
+
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <>
       <ScreenContainer
         scroll
         edges={['top', 'left', 'right', 'bottom']}
@@ -140,49 +204,58 @@ export default function TravelPreferencesScreen() {
           onBack={() => router.back()}
         />
 
-        <AppCard style={styles.formCard}>
-          <AppInput
-            label={t('fields.tripName')}
-            value={title}
-            onChangeText={setTitle}
-          />
-          <AppInput
-            label={t('fields.date')}
-            placeholder="YYYY-MM-DD"
-            value={date}
-            autoCapitalize="none"
-            onChangeText={setDate}
-          />
-          <AppInput
-            label={t('fields.startTime')}
-            placeholder="08:00"
-            value={startTime}
-            keyboardType="numbers-and-punctuation"
-            onChangeText={setStartTime}
-          />
-        </AppCard>
-
-        <PreferenceSection title={t('preferences.duration')}>
-          {durationOptions.map((option) => (
-            <SelectionChip
-              key={option}
-              label={t(`duration.${option}`)}
-              selected={durationType === option}
-              onPress={() => setDurationType(option)}
+        <View>
+          <SectionHeader title={t('preferences.timeGroup')} />
+          <AppCard style={styles.cardContent}>
+            <NativeDateTimeField
+              label={t('fields.date')}
+              value={journeyDate}
+              mode="date"
+              minimumDate={getStartOfLocalDay()}
+              onChange={updateDate}
             />
-          ))}
-        </PreferenceSection>
-
-        <PreferenceSection title={t('fields.startLocation')}>
-          {startLocations.map((location) => (
-            <SelectionChip
-              key={location.id ?? location.name}
-              label={location.name}
-              selected={startLocation.id === location.id}
-              onPress={() => setStartLocation(location)}
+            <NativeDateTimeField
+              label={t('fields.startTime')}
+              value={journeyDate}
+              mode="time"
+              onChange={updateTime}
             />
-          ))}
-        </PreferenceSection>
+            <AppText variant="labelMd">{t('preferences.duration')}</AppText>
+            <View style={styles.chips}>
+              {durationOptions.map((option) => (
+                <SelectionChip
+                  key={option}
+                  label={t(`duration.${option}`)}
+                  selected={durationType === option}
+                  onPress={() => updateDurationType(option)}
+                />
+              ))}
+            </View>
+          </AppCard>
+        </View>
+
+        <View>
+          <SectionHeader title={t('preferences.startGroup')} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('manual.changeStart')}
+            onPress={() => setPickerTarget('start')}
+            style={({ pressed }) => [
+              styles.locationField,
+              pressed && styles.pressed,
+            ]}
+          >
+            <MapPin size={iconSizes.button} color={colors.brand[600]} />
+            <View style={styles.flexCopy}>
+              <AppText variant="labelLg">{startLocation.name}</AppText>
+              {startLocation.source === 'custom-map-point' && (
+                <AppText variant="caption" color={colors.neutral.textSecondary}>
+                  {t('picker.unavailableIntelligence')}
+                </AppText>
+              )}
+            </View>
+          </Pressable>
+        </View>
 
         <PreferenceSection
           title={t('preferences.interests')}
@@ -204,35 +277,58 @@ export default function TravelPreferencesScreen() {
               key={style}
               label={t(`travelStyle.${style}`)}
               selected={travelStyle === style}
-              onPress={() => setTravelStyle(style)}
+              onPress={() => updateTravelStyle(style)}
             />
           ))}
         </PreferenceSection>
 
-        <PreferenceSection title={t('fields.routePreference')}>
-          {routeModes.map((mode) => (
-            <SelectionChip
-              key={mode}
-              label={t(`routeMode.${mode}`)}
-              selected={routePreference === mode}
-              onPress={() => setRoutePreference(mode)}
-            />
-          ))}
-        </PreferenceSection>
-
-        <PreferenceSection
-          title={t('preferences.mustVisit')}
-          subtitle={t('preferences.mustVisitHint')}
-        >
-          {destinations.map((destination) => (
-            <SelectionChip
-              key={destination.id}
-              label={destination.name}
-              selected={mustVisitDestinationIds.includes(destination.id)}
-              onPress={() => toggleMustVisit(destination.id)}
-            />
-          ))}
-        </PreferenceSection>
+        <View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isAdvancedOpen }}
+            onPress={() => setIsAdvancedOpen((current) => !current)}
+            style={({ pressed }) => [
+              styles.advancedToggle,
+              pressed && styles.pressed,
+            ]}
+          >
+            <AppText variant="labelLg" style={styles.flexCopy}>
+              {t('preferences.advanced')}
+            </AppText>
+            {isAdvancedOpen ? (
+              <ChevronUp size={iconSizes.button} color={colors.brand[600]} />
+            ) : (
+              <ChevronDown size={iconSizes.button} color={colors.brand[600]} />
+            )}
+          </Pressable>
+          {isAdvancedOpen && (
+            <AppCard variant="outlined" style={styles.advancedContent}>
+              <AppText variant="labelMd">{t('fields.routePreference')}</AppText>
+              <View style={styles.chips}>
+                {routeModes.map((mode) => (
+                  <SelectionChip
+                    key={mode}
+                    label={t(`routeMode.${mode}`)}
+                    selected={routePreference === mode}
+                    onPress={() => setRoutePreference(mode)}
+                  />
+                ))}
+              </View>
+              <AppText variant="labelMd">{t('preferences.mustVisit')}</AppText>
+              {selectedMustVisitNames.length > 0 && (
+                <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+                  {selectedMustVisitNames.join(' · ')}
+                </AppText>
+              )}
+              <AppButton
+                fullWidth
+                variant="secondary"
+                label={t('preferences.chooseMustVisit')}
+                onPress={() => setPickerTarget('must-visit')}
+              />
+            </AppCard>
+          )}
+        </View>
 
         {error && (
           <AppText variant="bodySm" color={colors.semantic.danger.text}>
@@ -248,7 +344,44 @@ export default function TravelPreferencesScreen() {
           onPress={() => void submit()}
         />
       </ScreenContainer>
-    </KeyboardAvoidingView>
+
+      <DestinationPicker
+        visible={pickerTarget !== null}
+        title={
+          pickerTarget === 'start' ? t('picker.startTitle') : t('preferences.mustVisit')
+        }
+        mode={pickerTarget === 'start' ? 'single' : 'multiple'}
+        selectedIds={
+          pickerTarget === 'start'
+            ? startLocation.source === 'nadi-destination' && startLocation.id
+              ? [startLocation.id]
+              : []
+            : mustVisitDestinationIds
+        }
+        maxSelections={pickerTarget === 'must-visit' ? maximumMustVisit : 1}
+        allowCustomPoint={pickerTarget === 'start'}
+        onClose={() => setPickerTarget(null)}
+        onChooseCustomPoint={openCustomPointPicker}
+        onConfirm={(selected) => {
+          if (pickerTarget === 'start') {
+            const destination = selected[0];
+            if (destination) setStartLocation(destinationToLocation(destination));
+          } else {
+            setMustVisitDestinationIds(selected.map((destination) => destination.id));
+          }
+          setPickerTarget(null);
+        }}
+      />
+      <CustomMapPointPicker
+        visible={isCustomPointOpen}
+        title={t('picker.startTitle')}
+        onClose={() => setIsCustomPointOpen(false)}
+        onConfirm={(place: ItineraryPlace) => {
+          setStartLocation(place);
+          setIsCustomPointOpen(false);
+        }}
+      />
+    </>
   );
 }
 
@@ -270,20 +403,50 @@ function PreferenceSection({
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   screen: {
     paddingTop: spacing[3],
     paddingBottom: spacing[8],
     gap: spacing[6],
   },
-  formCard: {
+  cardContent: {
     gap: spacing[4],
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing[2],
+  },
+  locationField: {
+    minHeight: layout.inputHeight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.neutral.borderSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.neutral.white,
+  },
+  flexCopy: {
+    flex: 1,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  advancedToggle: {
+    minHeight: layout.minTouchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    borderWidth: 1,
+    borderColor: colors.neutral.borderSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.neutral.white,
+  },
+  advancedContent: {
+    gap: spacing[4],
+    marginTop: spacing[2],
   },
 });

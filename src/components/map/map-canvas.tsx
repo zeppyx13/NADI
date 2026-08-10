@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MapView, {
   Circle,
   Marker,
   Polyline,
+  type EdgePadding,
   type Region,
 } from 'react-native-maps';
 import { MapPin, TriangleAlert, UserRound } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, iconSizes, radii, shadows } from '@/constants/theme';
+import {
+  colors,
+  iconSizes,
+  radii,
+  shadows,
+  type RouteMode,
+} from '@/constants/theme';
 import type { Destination } from '@/types/destination';
+import type { ItineraryLocation, ItineraryPlace } from '@/types/itinerary';
 
 export const baliRegion: Region = {
   latitude: -8.4095,
@@ -32,69 +40,143 @@ export const incidentCoordinate = {
 export type MapCanvasProps = {
   destinations: readonly Destination[];
   selectedDestination?: Destination;
+  activePlace?: ItineraryPlace;
+  startLocation?: ItineraryLocation;
+  priorityDestinationIds?: readonly string[];
   showIncident: boolean;
   showCrowdedArea: boolean;
   showRoute: boolean;
+  routeMode: RouteMode;
   recenterSignal: number;
-  locationSignal: number;
+  mapPadding: EdgePadding;
   onSelectDestination: (destination: Destination) => void;
 };
+
+const detailedRegionThreshold = 0.58;
+
+function isInsideRegion(destination: Destination, region: Region): boolean {
+  const latitudeMargin = region.latitudeDelta * 0.58;
+  const longitudeMargin = region.longitudeDelta * 0.58;
+  return (
+    Math.abs(destination.latitude - region.latitude) <= latitudeMargin &&
+    Math.abs(destination.longitude - region.longitude) <= longitudeMargin
+  );
+}
 
 export function MapCanvas({
   destinations,
   selectedDestination,
+  activePlace,
+  startLocation,
+  priorityDestinationIds = [],
   showIncident,
   showCrowdedArea,
   showRoute,
+  routeMode,
   recenterSignal,
-  locationSignal,
+  mapPadding,
   onSelectDestination,
 }: MapCanvasProps) {
   const { t } = useTranslation('screens');
   const mapRef = useRef<MapView>(null);
+  const [region, setRegion] = useState<Region>(baliRegion);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const priorityIds = useMemo(
+    () => new Set(priorityDestinationIds),
+    [priorityDestinationIds],
+  );
+  const routeTarget = selectedDestination ?? activePlace;
+  const routeOrigin = startLocation ?? simulatedStartCoordinate;
   const routeCoordinates = useMemo(
     () =>
-      selectedDestination
+      routeTarget
         ? [
-            simulatedStartCoordinate,
-            { latitude: -8.635, longitude: 115.224 },
-            { latitude: -8.57, longitude: 115.246 },
+            routeOrigin,
             {
-              latitude: selectedDestination.latitude,
-              longitude: selectedDestination.longitude,
+              latitude: routeOrigin.latitude * 0.67 + routeTarget.latitude * 0.33,
+              longitude: routeOrigin.longitude * 0.67 + routeTarget.longitude * 0.33,
+            },
+            {
+              latitude: routeOrigin.latitude * 0.33 + routeTarget.latitude * 0.67,
+              longitude: routeOrigin.longitude * 0.33 + routeTarget.longitude * 0.67,
+            },
+            {
+              latitude: routeTarget.latitude,
+              longitude: routeTarget.longitude,
             },
           ]
         : [],
-    [selectedDestination],
+    [routeOrigin, routeTarget],
   );
+  const renderedDestinations = useMemo(() => {
+    const showViewportDestinations =
+      region.latitudeDelta <= detailedRegionThreshold;
+
+    return destinations.filter((destination) => {
+      const isSelected = destination.id === selectedDestination?.id;
+      const isPriority = priorityIds.has(destination.id);
+      if (isSelected || isPriority) return true;
+      if (!showViewportDestinations) {
+        return destination.intelligenceCoverage === 'pilot';
+      }
+      return isInsideRegion(destination, region);
+    });
+  }, [destinations, priorityIds, region, selectedDestination?.id]);
 
   useEffect(() => {
-    if (recenterSignal > 0) {
-      mapRef.current?.animateToRegion(baliRegion, 350);
+    if (recenterSignal <= 0 || !isMapReady) return;
+
+    if (showRoute && routeCoordinates.length > 0) {
+      mapRef.current?.fitToCoordinates(routeCoordinates, {
+        animated: true,
+        edgePadding: mapPadding,
+      });
+      return;
     }
-  }, [recenterSignal]);
 
-  useEffect(() => {
-    if (locationSignal > 0) {
+    if (routeTarget) {
       mapRef.current?.animateToRegion(
         {
-          ...simulatedStartCoordinate,
-          latitudeDelta: 0.18,
-          longitudeDelta: 0.18,
+          latitude: routeTarget.latitude,
+          longitude: routeTarget.longitude,
+          latitudeDelta: 0.24,
+          longitudeDelta: 0.2,
         },
         350,
       );
+      return;
     }
-  }, [locationSignal]);
+
+    mapRef.current?.animateToRegion(baliRegion, 350);
+  }, [
+    isMapReady,
+    mapPadding,
+    recenterSignal,
+    routeCoordinates,
+    routeTarget,
+    showRoute,
+  ]);
+
+  useEffect(() => {
+    if (!isMapReady || !showRoute || routeCoordinates.length === 0) return;
+    mapRef.current?.fitToCoordinates(routeCoordinates, {
+      animated: true,
+      edgePadding: mapPadding,
+    });
+  }, [isMapReady, mapPadding, routeCoordinates, showRoute]);
 
   return (
     <MapView
       ref={mapRef}
       style={StyleSheet.absoluteFill}
       initialRegion={baliRegion}
+      mapPadding={mapPadding}
+      paddingAdjustmentBehavior="never"
       showsCompass={false}
       showsMyLocationButton={false}
       toolbarEnabled={false}
+      onMapReady={() => setIsMapReady(true)}
+      onRegionChangeComplete={setRegion}
     >
       {showCrowdedArea && (
         <Circle
@@ -106,9 +188,17 @@ export function MapCanvas({
         />
       )}
 
-      {destinations.map((destination) => {
+      {renderedDestinations.map((destination) => {
         const isSelected = destination.id === selectedDestination?.id;
-        const markerColor = colors.occupancy[destination.occupancyLevel];
+        const markerColor = destination.occupancyLevel
+          ? colors.occupancy[destination.occupancyLevel]
+          : colors.brand[600];
+        const markerDescription = destination.occupancyLevel
+          ? t('map.destinationMarkerDescription', {
+              region: destination.region,
+              occupancy: t(`status.occupancy.${destination.occupancyLevel}`),
+            })
+          : destination.region;
 
         return (
           <Marker
@@ -118,10 +208,14 @@ export function MapCanvas({
               longitude: destination.longitude,
             }}
             title={destination.name}
-            description={t('map.destinationMarkerDescription', {
-              region: destination.region,
-              occupancy: t(`status.occupancy.${destination.occupancyLevel}`),
-            })}
+            description={markerDescription}
+            zIndex={
+              isSelected
+                ? 10
+                : destination.intelligenceCoverage === 'pilot'
+                  ? 5
+                  : 1
+            }
             onPress={() => onSelectDestination(destination)}
           >
             <View
@@ -131,14 +225,33 @@ export function MapCanvas({
                 isSelected && styles.destinationMarkerSelected,
               ]}
             >
-              <MapPin size={iconSizes.button} color={markerColor} fill={markerColor} />
+              <MapPin
+                size={iconSizes.button}
+                color={markerColor}
+                fill={markerColor}
+              />
             </View>
           </Marker>
         );
       })}
 
+      {activePlace?.source === 'custom-map-point' && (
+        <Marker
+          coordinate={{
+            latitude: activePlace.latitude,
+            longitude: activePlace.longitude,
+          }}
+          title={activePlace.name}
+          zIndex={8}
+        >
+          <View style={styles.customPlaceMarker}>
+            <MapPin size={iconSizes.button} color={colors.neutral.white} />
+          </View>
+        </Marker>
+      )}
+
       <Marker
-        coordinate={simulatedStartCoordinate}
+        coordinate={routeOrigin}
         title={t('map.userMarker')}
         description={t('map.userMarkerDescription')}
       >
@@ -162,9 +275,8 @@ export function MapCanvas({
       {showRoute && routeCoordinates.length > 0 && (
         <Polyline
           coordinates={routeCoordinates}
-          strokeColor={colors.route.balanced}
+          strokeColor={colors.route[routeMode]}
           strokeWidth={5}
-          lineDashPattern={[1]}
         />
       )}
     </MapView>
@@ -208,6 +320,17 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.neutral.white,
     backgroundColor: colors.semantic.danger.main,
+    ...shadows.md,
+  },
+  customPlaceMarker: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    borderWidth: 3,
+    borderColor: colors.neutral.white,
+    backgroundColor: colors.teal[600],
     ...shadows.md,
   },
 });

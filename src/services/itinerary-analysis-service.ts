@@ -1,7 +1,7 @@
 import { destinations } from '@/data/destinations';
 import {
   destinationScenarioConditions,
-  getTravelMinutes,
+  getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
 import { itineraryDecisionThresholds } from '@/data/itinerary-thresholds';
 import type { OccupancyLevel } from '@/constants/theme';
@@ -14,6 +14,7 @@ import type {
   ItineraryDraft,
   ItineraryIssue,
   ItineraryIssueType,
+  ItineraryLocation,
   ItineraryPlan,
   ItineraryRecommendation,
   ItineraryScenarioId,
@@ -49,10 +50,10 @@ function ratioToOccupancyLevel(ratio: number): OccupancyLevel {
 
 function getPredictedLoad(
   destinationId: string,
+  basePredictedLoadRatio: number,
   arrivalTime: string,
   scenarioId: ItineraryScenarioId,
 ): number {
-  const base = destinationScenarioConditions[destinationId]?.basePredictedLoadRatio ?? 0.5;
   const arrivalMinutes = parseTimeToMinutes(arrivalTime) ?? 0;
   const hour = Math.floor(arrivalMinutes / 60);
 
@@ -63,7 +64,7 @@ function getPredictedLoad(
 
   if (destinationId === 'tanah-lot' && hour >= 17) return 0.58;
   if (destinationId === 'pantai-kuta' && hour >= 18) return 0.64;
-  return base;
+  return basePredictedLoadRatio;
 }
 
 function createConditionSnapshot(
@@ -71,18 +72,14 @@ function createConditionSnapshot(
   scenarioId: ItineraryScenarioId,
   isFirstRemaining: boolean,
   capturedAt: string,
-): DestinationConditionSnapshot {
-  const source = destinationScenarioConditions[stop.destinationId] ?? {
-    currentLoadRatio: 0.5,
-    basePredictedLoadRatio: 0.55,
-    trafficLevel: 'moderate' as const,
-    routeRisk: 'medium' as const,
-    parkingStatus: 'unknown' as const,
-    roadClosed: false,
-    activeIncidentIds: [],
-  };
+): DestinationConditionSnapshot | null {
+  const destination = destinations.find((item) => item.id === stop.destinationId);
+  const source = destinationScenarioConditions[stop.destinationId];
+  if (destination?.intelligenceCoverage !== 'pilot' || !source) return null;
+
   const predictedLoadRatio = getPredictedLoad(
     stop.destinationId,
+    source.basePredictedLoadRatio,
     stop.plannedArrival,
     scenarioId,
   );
@@ -166,7 +163,7 @@ function getAssessmentStatus(issues: ItineraryIssue[]): StopAssessment['status']
 
 function shiftStopsFromIndex(plan: ItineraryPlan, index: number, minutes: number) {
   const stops = plan.stops.map((stop, stopIndex) =>
-    stopIndex < index
+    stopIndex < index || stop.status === 'completed' || stop.status === 'skipped'
       ? stop
       : {
           ...stop,
@@ -214,20 +211,27 @@ function createReschedulePlan(plan: ItineraryPlan, stopId: string): ItineraryPla
 function rebuildSchedule(
   stops: ItineraryStop[],
   startTime: string,
-  startLocationId: string | undefined,
+  startLocation: ItineraryLocation,
+  mutableStopIds?: ReadonlySet<string>,
 ): ItineraryStop[] {
   let cursor = startTime;
-  let previousDestinationId = startLocationId;
+  let previousLocation: ItineraryLocation = startLocation;
 
   return stops.map((stop) => {
-    const travelMinutes = getTravelMinutes(previousDestinationId, stop.destinationId);
+    if (mutableStopIds && !mutableStopIds.has(stop.id)) {
+      previousLocation = stop.place;
+      cursor = stop.plannedDeparture;
+      return stop;
+    }
+
+    const travelMinutes = getTravelMinutesBetween(previousLocation, stop.place);
     const source = destinationScenarioConditions[stop.destinationId];
     const plannedArrival = addMinutesToTime(cursor, travelMinutes);
     const plannedDeparture = addMinutesToTime(
       plannedArrival,
       stop.visitDurationMinutes,
     );
-    previousDestinationId = stop.destinationId;
+    previousLocation = stop.place;
     cursor = plannedDeparture;
     return {
       ...stop,
@@ -248,13 +252,21 @@ function rebuildSchedule(
 function createReorderPlan(
   plan: ItineraryPlan,
   stopId: string,
-  startLocationId: string | undefined,
+  startLocation: ItineraryLocation,
 ): ItineraryPlan {
+  const movableStops = plan.stops.filter(
+    (stop) => stop.status !== 'completed' && stop.status !== 'skipped',
+  );
+  const affectedMovableIndex = movableStops.findIndex((stop) => stop.id === stopId);
+  if (affectedMovableIndex < 0 || movableStops.length < 2) return clonePlan(plan);
+  const targetMovableIndex =
+    affectedMovableIndex < movableStops.length - 1
+      ? affectedMovableIndex + 1
+      : affectedMovableIndex - 1;
+  const targetStop = movableStops[targetMovableIndex];
   const affectedIndex = plan.stops.findIndex((stop) => stop.id === stopId);
-  if (affectedIndex < 0 || plan.stops.length < 2) return clonePlan(plan);
-  const targetIndex = affectedIndex < plan.stops.length - 1
-    ? affectedIndex + 1
-    : affectedIndex - 1;
+  const targetIndex = plan.stops.findIndex((stop) => stop.id === targetStop?.id);
+  if (affectedIndex < 0 || targetIndex < 0) return clonePlan(plan);
   const reordered = clonePlan(plan).stops;
   [reordered[affectedIndex], reordered[targetIndex]] = [
     reordered[targetIndex],
@@ -265,7 +277,8 @@ function createReorderPlan(
   const scheduled = rebuildSchedule(
     reordered,
     addMinutesToTime(firstArrival, -firstTravelMinutes),
-    startLocationId,
+    startLocation,
+    new Set(movableStops.map((stop) => stop.id)),
   );
   return { stops: scheduled, ...calculatePlanTotals(scheduled) };
 }
@@ -279,12 +292,17 @@ function findReplacement(
   if (!original) return null;
   const usedIds = new Set(plan.stops.map((stop) => stop.destinationId));
   const affectedIndex = plan.stops.findIndex((stop) => stop.id === affected.id);
-  const previousId =
+  const previousLocation =
     affectedIndex > 0
-      ? plan.stops[affectedIndex - 1]?.destinationId
-      : itinerary.startLocation.id;
+      ? plan.stops[affectedIndex - 1]?.place ?? itinerary.startLocation
+      : itinerary.startLocation;
   const candidates: DestinationAlternativeCandidate[] = destinations
-    .filter((candidate) => !usedIds.has(candidate.id))
+    .filter(
+      (candidate) =>
+        candidate.intelligenceCoverage === 'pilot' &&
+        Boolean(destinationScenarioConditions[candidate.id]) &&
+        !usedIds.has(candidate.id),
+    )
     .map((candidate) => {
       const source = destinationScenarioConditions[candidate.id];
       const sameCategory = candidate.category === original.category;
@@ -297,7 +315,7 @@ function findReplacement(
         destinationId: candidate.id,
         similarityScore,
         predictedLoadRatio: source?.basePredictedLoadRatio ?? 1,
-        estimatedTravelMinutes: getTravelMinutes(previousId, candidate.id),
+        estimatedTravelMinutes: getTravelMinutesBetween(previousLocation, candidate),
         routeRisk: source?.routeRisk ?? 'high',
         reasons: [
           ...(sameCategory ? ['similar-experience'] : []),
@@ -331,7 +349,7 @@ function createReplacementPlan(
   plan: ItineraryPlan,
   stopId: string,
   replacement: Destination,
-  startLocationId: string | undefined,
+  startLocation: ItineraryLocation,
 ): ItineraryPlan {
   const replaced = clonePlan(plan).stops.map((stop) =>
     stop.id === stopId
@@ -339,6 +357,13 @@ function createReplacementPlan(
           ...stop,
           destinationId: replacement.id,
           destinationNameSnapshot: replacement.name,
+          place: {
+            id: replacement.id,
+            name: replacement.name,
+            latitude: replacement.latitude,
+            longitude: replacement.longitude,
+            source: 'nadi-destination' as const,
+          },
         }
       : stop,
   );
@@ -347,7 +372,14 @@ function createReplacementPlan(
   const stops = rebuildSchedule(
     replaced,
     addMinutesToTime(firstArrival, -firstTravelMinutes),
-    startLocationId,
+    startLocation,
+    new Set(
+      plan.stops
+        .filter(
+          (stop) => stop.status !== 'completed' && stop.status !== 'skipped',
+        )
+        .map((stop) => stop.id),
+    ),
   );
   return { stops, ...calculatePlanTotals(stops) };
 }
@@ -372,20 +404,24 @@ export class LocalItineraryAnalysisService implements ItineraryAnalysisService {
     const relevantStops = remainingOnly
       ? plan.stops.filter((stop) => stop.status !== 'completed' && stop.status !== 'skipped')
       : plan.stops;
-    const assessments = relevantStops.map((stop, index): StopAssessment => {
+    const assessments = relevantStops.flatMap((stop, index): StopAssessment[] => {
       const condition = createConditionSnapshot(
         stop,
         scenarioId,
         index === 0,
         analyzedAt,
       );
+      if (!condition) return [];
+
       const issues = getIssues(condition);
-      return {
-        stopId: stop.id,
-        status: getAssessmentStatus(issues),
-        condition,
-        issues,
-      };
+      return [
+        {
+          stopId: stop.id,
+          status: getAssessmentStatus(issues),
+          condition,
+          issues,
+        },
+      ];
     });
     const affectedAssessment = assessments.find((assessment) =>
       assessment.issues.some((issue) => issue.severity === 'danger'),
@@ -466,10 +502,10 @@ export class LocalItineraryAnalysisService implements ItineraryAnalysisService {
       );
     }
 
-    if (plan.stops.length > 1) {
+    if (relevantStops.length > 1) {
       await createRecommendation(
         'reorder',
-        createReorderPlan(plan, affectedStop.id, itinerary.startLocation.id),
+        createReorderPlan(plan, affectedStop.id, itinerary.startLocation),
       );
     }
 
@@ -485,7 +521,7 @@ export class LocalItineraryAnalysisService implements ItineraryAnalysisService {
           plan,
           affectedStop.id,
           replacement,
-          itinerary.startLocation.id,
+          itinerary.startLocation,
         ),
         replacement.name,
       );

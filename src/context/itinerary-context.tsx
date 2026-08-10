@@ -31,7 +31,6 @@ type ItineraryAction =
       activeItineraryId: string | null;
     }
   | { type: 'upsert'; itinerary: Itinerary }
-  | { type: 'set-active'; itinerary: Itinerary }
   | { type: 'complete'; itinerary: Itinerary };
 
 type ItineraryContextValue = ItineraryContextState & {
@@ -77,9 +76,6 @@ function reducer(
       )
     : [...state.itineraries, action.itinerary];
 
-  if (action.type === 'set-active') {
-    return { ...state, itineraries, activeItineraryId: action.itinerary.id };
-  }
   if (action.type === 'complete') {
     return {
       ...state,
@@ -143,7 +139,8 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
   );
   const start = useCallback(async (id: string) => {
     const itinerary = await itineraryService.start(id);
-    dispatch({ type: 'set-active', itinerary });
+    const storedState = await itineraryService.hydrate();
+    dispatch({ type: 'hydrate', ...storedState });
     return itinerary;
   }, []);
   const complete = useCallback(async (id: string) => {

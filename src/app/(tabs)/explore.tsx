@@ -33,6 +33,7 @@ const filters: readonly ExploreFilter[] = [
   'nature',
   'spiritual',
   'culinary',
+  'village',
 ];
 
 export default function ExploreScreen() {
@@ -129,6 +130,7 @@ export default function ExploreScreen() {
         renderItem={({ item }) => (
           <DestinationCard
             destination={item}
+            minimal
             onPress={() =>
               router.push({
                 pathname: '/(tabs)/map',

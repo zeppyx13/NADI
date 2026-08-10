@@ -5,7 +5,6 @@ import {
   Compass,
   Heart,
   Languages,
-  LocateFixed,
   LogOut,
   MapPinned,
   Route,
@@ -24,19 +23,21 @@ import {
   AppText,
   Divider,
   ScreenContainer,
-  SectionHeader,
 } from '@/components/ui';
 import { colors, iconSizes, radii, spacing } from '@/constants/theme';
 
-const travelSettings = [
-  { key: 'tourismPreferences', icon: Compass },
-  { key: 'routePreferences', icon: Route },
+const travelMenuItems = [
+  { key: 'myItineraries', icon: MapPinned },
   { key: 'favorites', icon: Heart },
   { key: 'history', icon: Clock3 },
 ] as const;
 
-const accountSettings = [
-  { key: 'editProfile', icon: UserRound },
+const preferenceMenuItems = [
+  { key: 'tourismPreferences', icon: Compass },
+  { key: 'routePreferences', icon: Route },
+] as const;
+
+const settingsMenuItems = [
   { key: 'notifications', icon: Bell },
   { key: 'locationPrivacy', icon: ShieldCheck },
 ] as const;
@@ -56,7 +57,7 @@ export default function ProfileScreen() {
         subtitle={t('profile.subtitle')}
       />
 
-      <AppCard variant="elevated" style={styles.profileCard}>
+      <View style={styles.profileSummary}>
         <View style={styles.avatar}>
           <UserRound size={iconSizes.empty} color={colors.neutral.white} />
         </View>
@@ -66,50 +67,44 @@ export default function ProfileScreen() {
             {t('profile.email')}
           </AppText>
         </View>
-      </AppCard>
+      </View>
 
-      <AppCard style={styles.statsCard}>
-        <View style={styles.stat}>
-          <Heart size={iconSizes.button} color={colors.brand[600]} />
-          <AppText variant="headingSm">12</AppText>
-          <AppText
-            variant="caption"
-            color={colors.neutral.textSecondary}
-            style={styles.statLabel}
-          >
-            {t('profile.stats.favorites')}
-          </AppText>
-        </View>
-        <Divider orientation="vertical" />
-        <View style={styles.stat}>
-          <MapPinned size={iconSizes.button} color={colors.teal[600]} />
-          <AppText variant="headingSm">4</AppText>
-          <AppText
-            variant="caption"
-            color={colors.neutral.textSecondary}
-            style={styles.statLabel}
-          >
-            {t('profile.stats.trips')}
-          </AppText>
-        </View>
-        <Divider orientation="vertical" />
-        <View style={styles.stat}>
-          <Bell size={iconSizes.button} color={colors.semantic.warning.text} />
-          <AppText variant="headingSm">3</AppText>
-          <AppText
-            variant="caption"
-            color={colors.neutral.textSecondary}
-            style={styles.statLabel}
-          >
-            {t('profile.stats.savedAlerts')}
-          </AppText>
-        </View>
-      </AppCard>
+      <View style={styles.section}>
+        <AppText
+          variant="labelMd"
+          color={colors.neutral.textSecondary}
+          style={styles.sectionTitle}
+        >
+          {t('profile.travelTitle')}
+        </AppText>
+        <AppCard variant="outlined" style={styles.menuCard}>
+          {travelMenuItems.map((item, index) => (
+            <View key={item.key}>
+              {index > 0 && <Divider spacing={0} />}
+              <ProfileMenuItem
+                icon={item.icon}
+                label={t(`profile.menu.${item.key}`)}
+                onPress={
+                  item.key === 'myItineraries'
+                    ? () => router.push('/itinerary')
+                    : showUnavailableNotice
+                }
+              />
+            </View>
+          ))}
+        </AppCard>
+      </View>
 
-      <View>
-        <SectionHeader title={t('profile.settingsTitle')} />
-        <AppCard style={styles.menuCard}>
-          {travelSettings.map((item, index) => (
+      <View style={styles.section}>
+        <AppText
+          variant="labelMd"
+          color={colors.neutral.textSecondary}
+          style={styles.sectionTitle}
+        >
+          {t('profile.preferencesTitle')}
+        </AppText>
+        <AppCard variant="outlined" style={styles.menuCard}>
+          {preferenceMenuItems.map((item, index) => (
             <View key={item.key}>
               {index > 0 && <Divider spacing={0} />}
               <ProfileMenuItem
@@ -122,20 +117,15 @@ export default function ProfileScreen() {
         </AppCard>
       </View>
 
-      <View>
-        <SectionHeader title={t('profile.accountTitle')} />
-        <AppCard style={styles.menuCard}>
-          {accountSettings.map((item, index) => (
-            <View key={item.key}>
-              {index > 0 && <Divider spacing={0} />}
-              <ProfileMenuItem
-                icon={item.icon}
-                label={t(`profile.menu.${item.key}`)}
-                onPress={showUnavailableNotice}
-              />
-            </View>
-          ))}
-          <Divider spacing={0} />
+      <View style={styles.section}>
+        <AppText
+          variant="labelMd"
+          color={colors.neutral.textSecondary}
+          style={styles.sectionTitle}
+        >
+          {t('profile.settingsTitle')}
+        </AppText>
+        <AppCard variant="outlined" style={styles.menuCard}>
           <View style={styles.languageRow}>
             <View style={styles.languageIcon}>
               <Languages size={iconSizes.button} color={colors.brand[600]} />
@@ -148,6 +138,17 @@ export default function ProfileScreen() {
             </View>
             <LanguageSelector />
           </View>
+          <Divider spacing={0} />
+          {settingsMenuItems.map((item, index) => (
+            <View key={item.key}>
+              {index > 0 && <Divider spacing={0} />}
+              <ProfileMenuItem
+                icon={item.icon}
+                label={t(`profile.menu.${item.key}`)}
+                onPress={showUnavailableNotice}
+              />
+            </View>
+          ))}
         </AppCard>
       </View>
 
@@ -161,13 +162,6 @@ export default function ProfileScreen() {
         }
         onPress={() => router.replace('/(auth)/login')}
       />
-
-      <View style={styles.privacyNote}>
-        <LocateFixed size={iconSizes.inline} color={colors.neutral.iconMuted} />
-        <AppText variant="caption" color={colors.neutral.textMuted}>
-          {t('profile.menu.locationPrivacy')}
-        </AppText>
-      </View>
     </ScreenContainer>
   );
 }
@@ -178,14 +172,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[6],
     gap: spacing[6],
   },
-  profileCard: {
+  profileSummary: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[4],
+    paddingHorizontal: spacing[2],
   },
   avatar: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.pill,
@@ -195,44 +190,35 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing[1],
   },
-  statsCard: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+  section: {
+    gap: spacing[2],
   },
-  stat: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing[1],
-  },
-  statLabel: {
-    textAlign: 'center',
+  sectionTitle: {
+    paddingHorizontal: spacing[2],
+    textTransform: 'uppercase',
   },
   menuCard: {
-    paddingVertical: spacing[2],
+    padding: 0,
+    overflow: 'hidden',
   },
   languageRow: {
-    minHeight: 60,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
+    paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
   },
   languageIcon: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radii.md,
+    borderRadius: radii.sm,
     backgroundColor: colors.brand[50],
   },
   languageCopy: {
     flex: 1,
     gap: 2,
-  },
-  privacyNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing[2],
   },
 });

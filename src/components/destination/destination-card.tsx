@@ -21,6 +21,7 @@ const destinationImage = require('@/assets/images/logo-glow.png');
 export type DestinationCardProps = {
   destination: Destination;
   compact?: boolean;
+  minimal?: boolean;
   predictedOccupancyLevel?: OccupancyLevel;
   recommendationReason?: string;
   showRecommendationReason?: boolean;
@@ -30,6 +31,7 @@ export type DestinationCardProps = {
 export function DestinationCard({
   destination,
   compact = false,
+  minimal = false,
   predictedOccupancyLevel,
   recommendationReason,
   showRecommendationReason = !compact,
@@ -44,7 +46,7 @@ export function DestinationCard({
 
   return (
     <AppCard
-      variant="elevated"
+      variant={minimal ? 'outlined' : 'elevated'}
       style={compact ? styles.compactCard : styles.card}
     >
       <View style={styles.imageContainer}>
@@ -114,28 +116,34 @@ export function DestinationCard({
                 numberOfLines={1}
                 style={styles.metaText}
               >
-                {destination.region}
+                {minimal
+                  ? `${destination.region} · ${t(`explore.category.${destination.category}`)}`
+                  : destination.region}
               </AppText>
             </View>
           </View>
-          <OccupancyBadge level={destination.occupancyLevel} size="sm" />
+          {destination.occupancyLevel && (
+            <OccupancyBadge level={destination.occupancyLevel} size="sm" />
+          )}
         </View>
 
-        <View style={styles.badgeRow}>
-          <AppBadge
-            size="sm"
-            variant="info"
-            label={t(`explore.category.${destination.category}`)}
-          />
-          <View style={styles.travelTime}>
-            <Clock3 size={iconSizes.inline} color={colors.brand[600]} />
-            <AppText variant="caption" color={colors.brand[700]}>
-              {t('explore.travelEstimate', {
-                minutes: destination.estimatedTravelMinutes,
-              })}
-            </AppText>
+        {!minimal && (
+          <View style={styles.badgeRow}>
+            <AppBadge
+              size="sm"
+              variant="info"
+              label={t(`explore.category.${destination.category}`)}
+            />
+            <View style={styles.travelTime}>
+              <Clock3 size={iconSizes.inline} color={colors.brand[600]} />
+              <AppText variant="caption" color={colors.brand[700]}>
+                {t('explore.travelEstimate', {
+                  minutes: destination.estimatedTravelMinutes,
+                })}
+              </AppText>
+            </View>
           </View>
-        </View>
+        )}
 
         {predictedOccupancyLevel && (
           <View style={styles.predictionRow}>
@@ -146,14 +154,16 @@ export function DestinationCard({
           </View>
         )}
 
-        {showRecommendationReason && (
+        {!minimal &&
+          showRecommendationReason &&
+          (recommendationReason || destination.recommendationReasonKey) && (
           <AppText variant="bodySm" color={colors.neutral.textSecondary}>
             {recommendationReason ??
               t(`explore.recommendation.${destination.recommendationReasonKey}`, {
                 ns: 'screens',
               })}
           </AppText>
-        )}
+          )}
       </Pressable>
     </AppCard>
   );

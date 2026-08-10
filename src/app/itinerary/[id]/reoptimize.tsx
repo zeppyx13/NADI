@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { RefreshCw, ShieldAlert } from 'lucide-react-native';
+import { Info, RefreshCw, ShieldAlert } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +30,7 @@ export default function ReoptimizeItineraryScreen() {
     getItinerary,
     reanalyzeRemainingStops,
     approve,
+    approveOriginal,
   } = useItineraries();
   const itinerary = id ? getItinerary(id) : null;
   const requestedId = useRef<string | null>(null);
@@ -114,6 +115,19 @@ export default function ReoptimizeItineraryScreen() {
     }
   };
 
+  const handleKeepCurrent = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await approveOriginal(id);
+      router.replace({ pathname: '/itinerary/[id]', params: { id } });
+    } catch {
+      setError(t('errors.save'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <ScreenContainer
       scroll
@@ -131,15 +145,29 @@ export default function ReoptimizeItineraryScreen() {
         <AppBadge variant="warning" label={t('reoptimization.awaitingVerification')} />
       </View>
 
-      <AppCard variant="soft" style={styles.alertCard}>
-        <ShieldAlert size={iconSizes.header} color={colors.semantic.danger.main} />
-        <View style={styles.flex}>
-          <AppText variant="headingSm">{t('reoptimization.affectedTitle')}</AppText>
-          <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-            {t('reoptimization.affectedDescription')}
-          </AppText>
-        </View>
-      </AppCard>
+      {recommendation ? (
+        <AppCard variant="soft" style={styles.alertCard}>
+          <ShieldAlert size={iconSizes.header} color={colors.semantic.danger.main} />
+          <View style={styles.flex}>
+            <AppText variant="headingSm">{t('reoptimization.affectedTitle')}</AppText>
+            <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+              {t('reoptimization.affectedDescription')}
+            </AppText>
+          </View>
+        </AppCard>
+      ) : (
+        <AppCard variant="soft" style={styles.alertCard}>
+          <Info size={iconSizes.header} color={colors.semantic.info.main} />
+          <View style={styles.flex}>
+            <AppText variant="headingSm">
+              {t('review.intelligenceUnavailableTitle')}
+            </AppText>
+            <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+              {t('review.intelligenceUnavailableDescription')}
+            </AppText>
+          </View>
+        </AppCard>
+      )}
 
       <View>
         <SectionHeader
@@ -178,31 +206,34 @@ export default function ReoptimizeItineraryScreen() {
           {error}
         </AppText>
       )}
-      <AppButton
-        fullWidth
-        variant="teal"
-        loading={isSubmitting}
-        disabled={!recommendation}
-        label={t('review.useSuggestion')}
-        onPress={() => void handleUseSuggestion()}
-      />
-      <AppButton
-        fullWidth
-        variant="secondary"
-        disabled={(analysis.recommendations.length ?? 0) < 2 || isSubmitting}
-        label={t('review.seeOtherOptions')}
-        onPress={() =>
-          setSelectedIndex(
-            (current) => (current + 1) % analysis.recommendations.length,
-          )
-        }
-      />
+      {recommendation && (
+        <>
+          <AppButton
+            fullWidth
+            variant="teal"
+            loading={isSubmitting}
+            label={t('review.useSuggestion')}
+            onPress={() => void handleUseSuggestion()}
+          />
+          <AppButton
+            fullWidth
+            variant="secondary"
+            disabled={analysis.recommendations.length < 2 || isSubmitting}
+            label={t('review.seeOtherOptions')}
+            onPress={() =>
+              setSelectedIndex(
+                (current) => (current + 1) % analysis.recommendations.length,
+              )
+            }
+          />
+        </>
+      )}
       <AppButton
         fullWidth
         variant="ghost"
         disabled={isSubmitting}
         label={t('reoptimization.keepCurrent')}
-        onPress={() => router.replace({ pathname: '/itinerary/[id]', params: { id } })}
+        onPress={() => void handleKeepCurrent()}
       />
     </ScreenContainer>
   );

@@ -4,7 +4,7 @@ export const homeId = {
   notificationsWithCount: 'Buka peringatan, {{count}} belum dibaca',
   searchPlaceholder: 'Cari destinasi, area, atau tempat di Bali',
   searchAccessibility: 'Buka pencarian destinasi di Jelajah',
-  simulationLabel: 'Data Simulasi',
+  simulationLabel: 'Prediksi Sistem',
   partialNotice: 'Sebagian ringkasan belum tersedia. Informasi lain tetap dapat digunakan.',
 
   travelConditions: {

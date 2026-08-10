@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Info, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -89,6 +89,8 @@ export default function ItineraryReviewScreen() {
 
   const analysis = itinerary.latestAnalysis;
   const recommendations = analysis.recommendations;
+  const hasCompleteConditionIntelligence =
+    analysis.stopAssessments.length === itinerary.originalPlan.stops.length;
   const selectedRecommendation = recommendations[selectedRecommendationIndex];
   const affectedAssessment = analysis.stopAssessments.find(
     (assessment) => assessment.issues.length > 0,
@@ -155,11 +157,25 @@ export default function ItineraryReviewScreen() {
       {recommendations.length === 0 ? (
         <AppCard variant="elevated" style={styles.recommendationCard}>
           <View style={styles.iconRow}>
-            <ShieldCheck size={iconSizes.header} color={colors.semantic.success.main} />
-            <AppText variant="headingMd">{t('review.noChangeTitle')}</AppText>
+            {hasCompleteConditionIntelligence ? (
+              <ShieldCheck size={iconSizes.header} color={colors.semantic.success.main} />
+            ) : (
+              <Info size={iconSizes.header} color={colors.semantic.info.main} />
+            )}
+            <AppText variant="headingMd">
+              {t(
+                hasCompleteConditionIntelligence
+                  ? 'review.noChangeTitle'
+                  : 'review.intelligenceUnavailableTitle',
+              )}
+            </AppText>
           </View>
           <AppText variant="bodyMd" color={colors.neutral.textSecondary}>
-            {t('review.noChangeDescription')}
+            {t(
+              hasCompleteConditionIntelligence
+                ? 'review.noChangeDescription'
+                : 'review.intelligenceUnavailableDescription',
+            )}
           </AppText>
           <AppButton
             fullWidth

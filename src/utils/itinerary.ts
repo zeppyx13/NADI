@@ -1,11 +1,26 @@
 import type {
+  DurationType,
   ItineraryPlan,
   ItineraryStop,
   ManualItineraryStopInput,
+  TravelStyle,
 } from '@/types/itinerary';
 import type { TravelAlert } from '@/types/travel-alert';
 
 const MINUTES_PER_DAY = 24 * 60;
+
+export function getMaximumItineraryStops(
+  durationType: DurationType,
+  travelStyle: TravelStyle,
+): number {
+  if (durationType === 'half-day') return travelStyle === 'relaxed' ? 2 : 3;
+  if (durationType === 'one-day') {
+    if (travelStyle === 'relaxed') return 3;
+    if (travelStyle === 'intensive') return 5;
+    return 4;
+  }
+  return 5;
+}
 
 export function parseTimeToMinutes(value: string): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
@@ -35,6 +50,12 @@ export function getLocalDateInput(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+export function getStartOfLocalDay(date = new Date()): Date {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
 export function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T12:00:00`);
@@ -61,6 +82,7 @@ export function clonePlan(plan: ItineraryPlan): ItineraryPlan {
     ...plan,
     stops: plan.stops.map((stop) => ({
       ...stop,
+      place: { ...stop.place },
       routeToStop: stop.routeToStop
         ? { ...stop.routeToStop, activeIncidentIds: [...stop.routeToStop.activeIncidentIds] }
         : undefined,

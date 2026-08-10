@@ -7,7 +7,7 @@ export type SimulationBadgeProps = {
   label?: string;
 };
 
-export function SimulationBadge({ label = 'Data Simulasi' }: SimulationBadgeProps) {
+export function SimulationBadge({ label = 'Prediksi Sistem' }: SimulationBadgeProps) {
   return (
     <AppBadge
       variant="simulation"

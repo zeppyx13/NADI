@@ -4,7 +4,7 @@ export const homeEn = {
   notificationsWithCount: 'Open alerts, {{count}} unread',
   searchPlaceholder: 'Search destinations, areas, or places in Bali',
   searchAccessibility: 'Open destination search in Explore',
-  simulationLabel: 'Simulated Data',
+  simulationLabel: 'System Prediction',
   partialNotice: 'Part of this summary is unavailable. Other information is still usable.',
 
   travelConditions: {

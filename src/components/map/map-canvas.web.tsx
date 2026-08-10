@@ -1,16 +1,35 @@
 import { MapPin } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText } from '@/components/ui';
 import { colors, iconSizes, radii, spacing } from '@/constants/theme';
 import type { MapCanvasProps } from './map-canvas';
 
-export function MapCanvas({ destinations, onSelectDestination }: MapCanvasProps) {
+export function MapCanvas({
+  destinations,
+  selectedDestination,
+  activePlace,
+  mapPadding,
+  onSelectDestination,
+}: MapCanvasProps) {
   const { t } = useTranslation('screens');
+  const priorityDestinations = destinations.filter(
+    (destination) =>
+      destination.intelligenceCoverage === 'pilot' ||
+      destination.id === selectedDestination?.id,
+  );
+  const previewDestinations = (
+    priorityDestinations.length > 0 ? priorityDestinations : destinations
+  ).slice(0, 5);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: mapPadding.top, paddingBottom: mapPadding.bottom },
+      ]}
+    >
       <View style={styles.grid} />
       <View style={styles.copy}>
         <MapPin size={iconSizes.empty} color={colors.brand[600]} />
@@ -26,18 +45,36 @@ export function MapCanvas({ destinations, onSelectDestination }: MapCanvasProps)
         </AppText>
       </View>
       <View style={styles.destinationList}>
-        {destinations.slice(0, 3).map((destination) => (
-          <AppText
-            key={destination.id}
-            accessibilityRole="button"
-            onPress={() => onSelectDestination(destination)}
-            variant="labelMd"
-            color={colors.brand[700]}
-            style={styles.destination}
-          >
-            {destination.name}
-          </AppText>
-        ))}
+        {activePlace?.source === 'custom-map-point' && (
+          <View style={[styles.destination, styles.destinationSelected]}>
+            <AppText variant="labelMd" color={colors.neutral.white}>
+              {activePlace.name}
+            </AppText>
+          </View>
+        )}
+        {previewDestinations.map((destination) => {
+          const selected = destination.id === selectedDestination?.id;
+          return (
+            <Pressable
+              key={destination.id}
+              accessibilityLabel={destination.name}
+              accessibilityRole="button"
+              onPress={() => onSelectDestination(destination)}
+              style={({ pressed }) => [
+                styles.destination,
+                selected && styles.destinationSelected,
+                pressed && styles.destinationPressed,
+              ]}
+            >
+              <AppText
+                variant="labelMd"
+                color={selected ? colors.neutral.white : colors.brand[700]}
+              >
+                {destination.name}
+              </AppText>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -87,5 +124,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
     borderRadius: radii.pill,
     backgroundColor: colors.neutral.white,
+  },
+  destinationSelected: {
+    backgroundColor: colors.brand[600],
+  },
+  destinationPressed: {
+    opacity: 0.72,
   },
 });

@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { Itinerary, ItineraryStorageState } from '@/types/itinerary';
+import { destinations } from '@/data/destinations';
+import type {
+  Itinerary,
+  ItineraryPlan,
+  ItineraryPlace,
+  ItineraryStop,
+  ItineraryStorageState,
+} from '@/types/itinerary';
 
 export const itineraryStorageKeys = {
   itineraries: 'nadi.itineraries.v1',
@@ -42,12 +49,85 @@ function isStoredItinerary(value: unknown): value is Itinerary {
   );
 }
 
+function isStoredPlace(value: unknown): value is ItineraryPlace {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.latitude === 'number' &&
+    typeof value.longitude === 'number' &&
+    (value.source === 'nadi-destination' || value.source === 'custom-map-point')
+  );
+}
+
+function migrateStop(stop: ItineraryStop): ItineraryStop | null {
+  if (isStoredPlace(stop.place)) return stop;
+
+  const destination = destinations.find((item) => item.id === stop.destinationId);
+  if (!destination) return null;
+
+  return {
+    ...stop,
+    place: {
+      id: destination.id,
+      name: destination.name,
+      latitude: destination.latitude,
+      longitude: destination.longitude,
+      source: 'nadi-destination',
+    },
+  };
+}
+
+function migratePlan(plan: ItineraryPlan): ItineraryPlan | null {
+  const stops = plan.stops.flatMap((stop) => {
+    const migrated = migrateStop(stop);
+    return migrated ? [migrated] : [];
+  });
+  if (stops.length !== plan.stops.length) return null;
+
+  return {
+    ...plan,
+    stops,
+  };
+}
+
+function migrateItinerary(itinerary: Itinerary): Itinerary | null {
+  const originalPlan = migratePlan(itinerary.originalPlan);
+  const approvedPlan = itinerary.approvedPlan
+    ? migratePlan(itinerary.approvedPlan)
+    : null;
+  if (!originalPlan || (itinerary.approvedPlan && !approvedPlan)) return null;
+
+  return {
+    ...itinerary,
+    originalPlan,
+    approvedPlan,
+    latestAnalysis: itinerary.latestAnalysis
+      ? {
+          ...itinerary.latestAnalysis,
+          recommendations: Array.isArray(itinerary.latestAnalysis.recommendations)
+            ? itinerary.latestAnalysis.recommendations.flatMap((recommendation) => {
+                if (!hasValidPlan(recommendation.proposedPlan)) return [];
+                const proposedPlan = migratePlan(recommendation.proposedPlan);
+                return proposedPlan ? [{ ...recommendation, proposedPlan }] : [];
+              })
+            : [],
+        }
+      : null,
+  };
+}
+
 function parseItineraries(serialized: string | null): Itinerary[] {
   if (!serialized) return [];
 
   try {
     const parsed: unknown = JSON.parse(serialized);
-    return Array.isArray(parsed) ? parsed.filter(isStoredItinerary) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter(isStoredItinerary).flatMap((itinerary) => {
+          const migrated = migrateItinerary(itinerary);
+          return migrated ? [migrated] : [];
+        })
+      : [];
   } catch {
     return [];
   }

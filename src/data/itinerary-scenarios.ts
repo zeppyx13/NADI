@@ -1,3 +1,4 @@
+import { destinations } from '@/data/destinations';
 import type {
   ItineraryLocation,
   ItineraryScenarioId,
@@ -103,7 +104,83 @@ const travelMinutesByPair: Record<string, number> = {
   [pairKey('pantai-lovina', 'pura-besakih')]: 154,
 };
 
+const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+function getDistanceKilometers(
+  first: { latitude: number; longitude: number },
+  second: { latitude: number; longitude: number },
+): number {
+  const earthRadiusKilometers = 6371;
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const firstLatitude = toRadians(first.latitude);
+  const secondLatitude = toRadians(second.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(firstLatitude) *
+      Math.cos(secondLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusKilometers * Math.asin(Math.sqrt(haversine));
+}
+
+function estimateTravelMinutesFromCoordinates(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+): number {
+  const straightLineDistance = getDistanceKilometers(from, to);
+  const roadAdjustedDistance = straightLineDistance * 1.35;
+  const rawMinutes = (roadAdjustedDistance / 32) * 60 + 8;
+  return Math.min(210, Math.max(12, Math.round(rawMinutes / 5) * 5));
+}
+
+function getKnownLocation(locationId: string) {
+  if (locationId === defaultItineraryStartLocation.id) {
+    return defaultItineraryStartLocation;
+  }
+  return destinations.find((destination) => destination.id === locationId);
+}
+
+function getLocalTravelEstimate(fromId: string, toId: string): number | null {
+  const destinationFromDenpasar =
+    fromId === defaultItineraryStartLocation.id
+      ? destinations.find((destination) => destination.id === toId)
+      : toId === defaultItineraryStartLocation.id
+        ? destinations.find((destination) => destination.id === fromId)
+        : undefined;
+  if (destinationFromDenpasar) {
+    return destinationFromDenpasar.estimatedTravelMinutes;
+  }
+
+  const from = getKnownLocation(fromId);
+  const to = getKnownLocation(toId);
+  if (!from || !to) return null;
+
+  return estimateTravelMinutesFromCoordinates(from, to);
+}
+
 export function getTravelMinutes(fromId: string | undefined, toId: string): number {
   if (!fromId || fromId === toId) return fromId === toId ? 12 : 45;
-  return travelMinutesByPair[pairKey(fromId, toId)] ?? 60;
+  return (
+    travelMinutesByPair[pairKey(fromId, toId)] ??
+    getLocalTravelEstimate(fromId, toId) ??
+    60
+  );
+}
+
+export function getTravelMinutesBetween(
+  from: ItineraryLocation,
+  to: ItineraryLocation,
+): number {
+  if (from.id && to.id) {
+    if (from.id === to.id) return 12;
+    const knownEstimate =
+      travelMinutesByPair[pairKey(from.id, to.id)] ??
+      getLocalTravelEstimate(from.id, to.id);
+    if (knownEstimate !== null && knownEstimate !== undefined) {
+      return knownEstimate;
+    }
+  }
+
+  return estimateTravelMinutesFromCoordinates(from, to);
 }

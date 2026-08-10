@@ -79,7 +79,9 @@ function NearbyDestinationItem({ item, onPress }: NearbyDestinationItemProps) {
                 </AppText>
               </View>
             </View>
-            <OccupancyBadge level={destination.occupancyLevel} size="sm" />
+            {destination.occupancyLevel && (
+              <OccupancyBadge level={destination.occupancyLevel} size="sm" />
+            )}
           </View>
           <View style={styles.details}>
             <AppBadge

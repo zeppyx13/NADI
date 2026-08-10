@@ -1,152 +1,255 @@
 import { useRouter } from 'expo-router';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  View,
-} from 'react-native';
+  ArrowDown,
+  ArrowUp,
+  Clock3,
+  MapPin,
+  Plus,
+  Trash2,
+} from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { CustomMapPointPicker } from '@/components/itinerary/custom-map-point-picker';
+import { DestinationPicker } from '@/components/itinerary/destination-picker';
 import { ItineraryScreenHeader } from '@/components/itinerary/itinerary-screen-header';
-import { SelectionChip } from '@/components/itinerary/selection-chip';
+import { NativeDateTimeField } from '@/components/itinerary/native-date-time-field';
 import {
   AppButton,
   AppCard,
-  AppInput,
   AppText,
   IconButton,
   ScreenContainer,
   SectionHeader,
 } from '@/components/ui';
-import { colors, iconSizes, spacing, type RouteMode } from '@/constants/theme';
+import {
+  colors,
+  iconSizes,
+  layout,
+  motion,
+  radii,
+  spacing,
+} from '@/constants/theme';
 import { useItineraries } from '@/context/itinerary-context';
-import { destinations } from '@/data/destinations';
 import {
   defaultItineraryStartLocation,
-  getTravelMinutes,
+  getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
+import type { Destination } from '@/types/destination';
+import type { ItineraryLocation, ItineraryPlace } from '@/types/itinerary';
 import {
   addMinutesToTime,
   getLocalDateInput,
-  isIsoDate,
-  parseTimeToMinutes,
-  validateManualStopSequence,
+  getStartOfLocalDay,
 } from '@/utils/itinerary';
 
 type BuilderStop = {
   localId: string;
-  destinationId: string;
-  plannedArrival: string;
-  visitDuration: string;
+  place: ItineraryPlace;
+  visitDurationMinutes: number;
 };
 
-const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
+type PickerTarget = 'start' | 'destinations' | null;
+type CustomPointTarget = 'start' | 'destination' | null;
+
+const durationOptions = [60, 90, 120] as const;
+
+function createInitialJourneyDate() {
+  const date = new Date();
+  date.setHours(8, 0, 0, 0);
+  return date;
+}
+
+function formatTime(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes(),
+  ).padStart(2, '0')}`;
+}
+
+function destinationToPlace(destination: Destination): ItineraryPlace {
+  return {
+    id: destination.id,
+    name: destination.name,
+    latitude: destination.latitude,
+    longitude: destination.longitude,
+    source: 'nadi-destination',
+  };
+}
+
+function placeToLocation(place: ItineraryPlace): ItineraryLocation {
+  return { ...place };
+}
 
 export default function ManualItineraryScreen() {
-  const { t } = useTranslation('itinerary');
+  const { t, i18n } = useTranslation('itinerary');
   const router = useRouter();
   const { createManualDraft } = useItineraries();
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(getLocalDateInput());
-  const [startTime, setStartTime] = useState('08:00');
-  const [routePreference, setRoutePreference] = useState<RouteMode>('balanced');
+  const [journeyDate, setJourneyDate] = useState(createInitialJourneyDate);
+  const [startLocation, setStartLocation] = useState<ItineraryLocation>(
+    defaultItineraryStartLocation,
+  );
   const [stops, setStops] = useState<BuilderStop[]>([]);
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
+  const [customPointTarget, setCustomPointTarget] =
+    useState<CustomPointTarget>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const appendDestination = (destinationId: string) => {
-    const previous = stops.at(-1);
-    const previousDestinationId = previous?.destinationId ?? defaultItineraryStartLocation.id;
-    const baseTime = previous
-      ? addMinutesToTime(previous.plannedArrival, Number(previous.visitDuration) || 90)
-      : startTime;
-    const plannedArrival = addMinutesToTime(
-      baseTime,
-      getTravelMinutes(previousDestinationId, destinationId),
+  const startTime = formatTime(journeyDate);
+  const scheduledStops = useMemo(
+    () =>
+      stops.reduce<{
+        items: (BuilderStop & { plannedArrival: string })[];
+        previousLocation: ItineraryLocation;
+        cursor: string;
+      }>(
+        (schedule, stop) => {
+          const plannedArrival = addMinutesToTime(
+            schedule.cursor,
+            getTravelMinutesBetween(schedule.previousLocation, stop.place),
+          );
+          return {
+            items: [...schedule.items, { ...stop, plannedArrival }],
+            previousLocation: stop.place,
+            cursor: addMinutesToTime(plannedArrival, stop.visitDurationMinutes),
+          };
+        },
+        {
+          items: [],
+          previousLocation: startLocation,
+          cursor: startTime,
+        },
+      ).items,
+    [startLocation, startTime, stops],
+  );
+
+  const selectedDestinationIds = stops
+    .filter((stop) => stop.place.source === 'nadi-destination')
+    .map((stop) => stop.place.id);
+
+  const updateDate = (nextDate: Date) => {
+    setJourneyDate((current) => {
+      const next = new Date(current);
+      next.setFullYear(
+        nextDate.getFullYear(),
+        nextDate.getMonth(),
+        nextDate.getDate(),
+      );
+      return next;
+    });
+  };
+
+  const updateTime = (nextTime: Date) => {
+    setJourneyDate((current) => {
+      const next = new Date(current);
+      next.setHours(nextTime.getHours(), nextTime.getMinutes(), 0, 0);
+      return next;
+    });
+  };
+
+  const replaceCatalogDestinations = (selected: Destination[]) => {
+    const selectedById = new Map(
+      selected.map((destination) => [destination.id, destination]),
     );
-    setStops((current) => [
-      ...current,
-      {
-        localId: `manual-stop-${Date.now()}-${current.length}`,
-        destinationId,
-        plannedArrival,
-        visitDuration: '90',
-      },
-    ]);
+    const retainedStops = stops.flatMap((stop) => {
+      if (stop.place.source === 'custom-map-point') return [stop];
+      if (!selectedById.has(stop.place.id)) return [];
+      selectedById.delete(stop.place.id);
+      return [stop];
+    });
+    const additions = selected.flatMap((destination, index): BuilderStop[] =>
+      selectedById.has(destination.id)
+        ? [
+            {
+              localId: `manual-stop-${destination.id}-${stops.length + index}`,
+              place: destinationToPlace(destination),
+              visitDurationMinutes: 90,
+            },
+          ]
+        : [],
+    );
+    setStops([...retainedStops, ...additions]);
+    setPickerTarget(null);
     setError(null);
-  };
-
-  const addDestination = (destinationId: string) => {
-    if (stops.some((stop) => stop.destinationId === destinationId)) {
-      Alert.alert(t('manual.duplicateTitle'), t('manual.duplicateDescription'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('manual.addAgain'), onPress: () => appendDestination(destinationId) },
-      ]);
-      return;
-    }
-    appendDestination(destinationId);
-  };
-
-  const updateStop = (localId: string, patch: Partial<BuilderStop>) => {
-    setStops((current) =>
-      current.map((stop) => (stop.localId === localId ? { ...stop, ...patch } : stop)),
-    );
   };
 
   const moveStop = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= stops.length) return;
     setStops((current) => {
-      const arrivalSlots = current.map((stop) => stop.plannedArrival);
       const next = [...current];
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      return next.map((stop, stopIndex) => ({
-        ...stop,
-        plannedArrival: arrivalSlots[stopIndex],
-      }));
+      return next;
     });
   };
 
-  const validationError = useMemo(() => {
-    if (!title.trim()) return t('validation.title');
-    if (!isIsoDate(date)) return t('validation.date');
-    if (parseTimeToMinutes(startTime) === null) return t('validation.time');
-    if (stops.length === 0) return t('validation.stop');
-    const normalized = stops.map((stop) => ({
-      destinationId: stop.destinationId,
-      plannedArrival: stop.plannedArrival,
-      visitDurationMinutes: Number(stop.visitDuration),
-    }));
-    if (!validateManualStopSequence(normalized)) return t('validation.sequence');
-    const firstArrival = parseTimeToMinutes(normalized[0]?.plannedArrival ?? '');
-    const start = parseTimeToMinutes(startTime);
-    if (firstArrival === null || start === null || firstArrival < start) {
-      return t('validation.arrivalAfterStart');
+  const cycleDuration = (localId: string) => {
+    setStops((current) =>
+      current.map((stop) => {
+        if (stop.localId !== localId) return stop;
+        const index = durationOptions.indexOf(
+          stop.visitDurationMinutes as (typeof durationOptions)[number],
+        );
+        return {
+          ...stop,
+          visitDurationMinutes:
+            durationOptions[(index + 1) % durationOptions.length],
+        };
+      }),
+    );
+  };
+
+  const handleCustomPoint = (place: ItineraryPlace) => {
+    if (customPointTarget === 'start') {
+      setStartLocation(placeToLocation(place));
+    } else {
+      setStops((current) => [
+        ...current,
+        {
+          localId: `${place.id}-${current.length}`,
+          place,
+          visitDurationMinutes: 90,
+        },
+      ]);
     }
-    return null;
-  }, [date, startTime, stops, t, title]);
+    setCustomPointTarget(null);
+    setError(null);
+  };
+
+  const openCustomPointPicker = () => {
+    const target = pickerTarget === 'start' ? 'start' : 'destination';
+    setPickerTarget(null);
+    setTimeout(
+      () => setCustomPointTarget(target),
+      Platform.OS === 'ios' ? motion.slow : 0,
+    );
+  };
 
   const submit = async () => {
-    if (validationError) {
-      setError(validationError);
+    if (scheduledStops.length === 0) {
+      setError(t('validation.stop'));
       return;
     }
+
     setIsSubmitting(true);
     setError(null);
     try {
+      const formattedTitleDate = new Intl.DateTimeFormat(
+        i18n.language === 'id' ? 'id-ID' : 'en-US',
+        { day: 'numeric', month: 'short' },
+      ).format(journeyDate);
       const itinerary = await createManualDraft({
-        title: title.trim(),
-        date,
-        startLocation: defaultItineraryStartLocation,
+        title: t('manual.autoTitle', { date: formattedTitleDate }),
+        date: getLocalDateInput(journeyDate),
+        startLocation,
         startTime,
-        routePreference,
-        stops: stops.map((stop) => ({
-          destinationId: stop.destinationId,
+        routePreference: 'balanced',
+        stops: scheduledStops.map((stop) => ({
+          destinationId: stop.place.id,
+          place: stop.place,
           plannedArrival: stop.plannedArrival,
-          visitDurationMinutes: Number(stop.visitDuration),
+          visitDurationMinutes: stop.visitDurationMinutes,
         })),
       });
       router.push({ pathname: '/itinerary/review', params: { id: itinerary.id } });
@@ -158,10 +261,7 @@ export default function ManualItineraryScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <>
       <ScreenContainer
         scroll
         edges={['top', 'left', 'right', 'bottom']}
@@ -175,108 +275,91 @@ export default function ManualItineraryScreen() {
         />
 
         <AppCard style={styles.formCard}>
-          <AppInput
-            label={t('fields.tripName')}
-            placeholder={t('manual.namePlaceholder')}
-            value={title}
-            onChangeText={setTitle}
-          />
-          <AppInput
+          <NativeDateTimeField
             label={t('fields.date')}
-            placeholder="YYYY-MM-DD"
-            value={date}
-            autoCapitalize="none"
-            onChangeText={setDate}
+            value={journeyDate}
+            mode="date"
+            minimumDate={getStartOfLocalDay()}
+            onChange={updateDate}
           />
-          <AppInput
-            label={t('fields.startLocation')}
-            value={defaultItineraryStartLocation.name}
-            editable={false}
-          />
-          <AppInput
+          <NativeDateTimeField
             label={t('fields.startTime')}
-            placeholder="08:00"
-            value={startTime}
-            keyboardType="numbers-and-punctuation"
-            onChangeText={setStartTime}
+            value={journeyDate}
+            mode="time"
+            onChange={updateTime}
           />
+          <AppText variant="labelMd">{t('fields.startLocation')}</AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('manual.changeStart')}
+            onPress={() => setPickerTarget('start')}
+            style={({ pressed }) => [
+              styles.locationField,
+              pressed && styles.pressed,
+            ]}
+          >
+            <MapPin size={iconSizes.button} color={colors.brand[600]} />
+            <View style={styles.flexCopy}>
+              <AppText variant="labelLg">{startLocation.name}</AppText>
+              {startLocation.source === 'custom-map-point' && (
+                <AppText variant="caption" color={colors.neutral.textSecondary}>
+                  {t('picker.unavailableIntelligence')}
+                </AppText>
+              )}
+            </View>
+          </Pressable>
         </AppCard>
 
         <View>
-          <SectionHeader title={t('fields.routePreference')} />
-          <View style={styles.chips}>
-            {routeModes.map((mode) => (
-              <SelectionChip
-                key={mode}
-                label={t(`routeMode.${mode}`)}
-                selected={routePreference === mode}
-                onPress={() => setRoutePreference(mode)}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View>
           <SectionHeader
-            title={t('manual.addDestination')}
+            title={t('manual.stopsTitle')}
             subtitle={t('manual.addDestinationHint')}
+            action={{
+              label: t('manual.addDestination'),
+              onPress: () => setPickerTarget('destinations'),
+            }}
           />
-          <View style={styles.chips}>
-            {destinations.map((destination) => (
-              <SelectionChip
-                key={destination.id}
-                label={destination.name}
-                selected={stops.some((stop) => stop.destinationId === destination.id)}
-                onPress={() => addDestination(destination.id)}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View>
-          <SectionHeader title={t('manual.stopsTitle')} />
           <View style={styles.stopList}>
-            {stops.length === 0 && (
+            {scheduledStops.length === 0 && (
               <AppCard variant="soft">
                 <AppText variant="bodySm" color={colors.neutral.textSecondary}>
                   {t('manual.noStops')}
                 </AppText>
               </AppCard>
             )}
-            {stops.map((stop, index) => {
-              const destination = destinations.find(
-                (item) => item.id === stop.destinationId,
-              );
-              return (
-                <AppCard key={stop.localId} variant="outlined" style={styles.stopCard}>
+            {scheduledStops.map((stop, index) => (
+              <View key={stop.localId} style={styles.timelineRow}>
+                <View style={styles.timeColumn}>
+                  <AppText variant="labelMd" color={colors.brand[700]}>
+                    {stop.plannedArrival}
+                  </AppText>
+                  {index < scheduledStops.length - 1 && <View style={styles.line} />}
+                </View>
+                <AppCard variant="outlined" style={styles.stopCard}>
                   <View style={styles.stopHeader}>
-                    <View style={styles.stopCopy}>
+                    <View style={styles.flexCopy}>
                       <AppText variant="caption" color={colors.brand[600]}>
                         {t('manual.stopNumber', { count: index + 1 })}
                       </AppText>
-                      <AppText variant="headingSm">
-                        {destination?.name ?? stop.destinationId}
-                      </AppText>
+                      <AppText variant="headingSm">{stop.place.name}</AppText>
                     </View>
                     <View style={styles.actions}>
                       <IconButton
-                        variant="default"
                         disabled={index === 0}
                         accessibilityLabel={t('manual.moveUp')}
-                        icon={<ArrowUp size={iconSizes.button} color={colors.brand[700]} />}
+                        icon={<ArrowUp size={iconSizes.inline} color={colors.brand[700]} />}
                         onPress={() => moveStop(index, -1)}
                       />
                       <IconButton
-                        variant="default"
-                        disabled={index === stops.length - 1}
+                        disabled={index === scheduledStops.length - 1}
                         accessibilityLabel={t('manual.moveDown')}
-                        icon={<ArrowDown size={iconSizes.button} color={colors.brand[700]} />}
+                        icon={<ArrowDown size={iconSizes.inline} color={colors.brand[700]} />}
                         onPress={() => moveStop(index, 1)}
                       />
                       <IconButton
                         variant="danger"
                         accessibilityLabel={t('manual.remove')}
-                        icon={<Trash2 size={iconSizes.button} color={colors.semantic.danger.text} />}
+                        icon={<Trash2 size={iconSizes.inline} color={colors.semantic.danger.text} />}
                         onPress={() =>
                           setStops((current) =>
                             current.filter((item) => item.localId !== stop.localId),
@@ -285,27 +368,27 @@ export default function ManualItineraryScreen() {
                       />
                     </View>
                   </View>
-                  <View style={styles.stopFields}>
-                    <AppInput
-                      label={t('fields.arrival')}
-                      value={stop.plannedArrival}
-                      keyboardType="numbers-and-punctuation"
-                      onChangeText={(value) =>
-                        updateStop(stop.localId, { plannedArrival: value })
-                      }
-                    />
-                    <AppInput
-                      label={t('fields.durationMinutes')}
-                      value={stop.visitDuration}
-                      keyboardType="number-pad"
-                      onChangeText={(value) =>
-                        updateStop(stop.localId, { visitDuration: value })
-                      }
-                    />
-                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('manual.durationAction', {
+                      minutes: stop.visitDurationMinutes,
+                    })}
+                    onPress={() => cycleDuration(stop.localId)}
+                    style={({ pressed }) => [
+                      styles.durationButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Clock3 size={iconSizes.inline} color={colors.brand[600]} />
+                    <AppText variant="caption" color={colors.brand[700]}>
+                      {t('timeline.visitDuration', {
+                        minutes: stop.visitDurationMinutes,
+                      })}
+                    </AppText>
+                  </Pressable>
                 </AppCard>
-              );
-            })}
+              </View>
+            ))}
           </View>
         </View>
 
@@ -322,14 +405,51 @@ export default function ManualItineraryScreen() {
           onPress={() => void submit()}
         />
       </ScreenContainer>
-    </KeyboardAvoidingView>
+
+      <DestinationPicker
+        visible={pickerTarget !== null}
+        title={
+          pickerTarget === 'start' ? t('picker.startTitle') : t('picker.title')
+        }
+        mode={pickerTarget === 'start' ? 'single' : 'multiple'}
+        selectedIds={
+          pickerTarget === 'start'
+            ? startLocation.source === 'nadi-destination' && startLocation.id
+              ? [startLocation.id]
+              : []
+            : selectedDestinationIds
+        }
+        maxSelections={pickerTarget === 'destinations' ? 8 : 1}
+        allowCustomPoint
+        onClose={() => setPickerTarget(null)}
+        onChooseCustomPoint={openCustomPointPicker}
+        onConfirm={(selected) => {
+          if (pickerTarget === 'start') {
+            const destination = selected[0];
+            if (destination) {
+              setStartLocation(placeToLocation(destinationToPlace(destination)));
+            }
+            setPickerTarget(null);
+            return;
+          }
+          replaceCatalogDestinations(selected);
+        }}
+      />
+      <CustomMapPointPicker
+        visible={customPointTarget !== null}
+        title={
+          customPointTarget === 'start'
+            ? t('picker.startTitle')
+            : t('customPoint.title')
+        }
+        onClose={() => setCustomPointTarget(null)}
+        onConfirm={handleCustomPoint}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   screen: {
     paddingTop: spacing[3],
     paddingBottom: spacing[8],
@@ -338,31 +458,67 @@ const styles = StyleSheet.create({
   formCard: {
     gap: spacing[4],
   },
-  chips: {
+  locationField: {
+    minHeight: layout.inputHeight,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[2],
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+    borderWidth: 1,
+    borderColor: colors.neutral.borderSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.neutral.white,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  flexCopy: {
+    flex: 1,
+    gap: spacing[1],
   },
   stopList: {
-    gap: spacing[3],
+    gap: 0,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  timeColumn: {
+    width: 58,
+    alignItems: 'flex-start',
+    paddingTop: spacing[4],
+  },
+  line: {
+    width: 2,
+    flex: 1,
+    minHeight: spacing[4],
+    marginTop: spacing[2],
+    marginLeft: spacing[4],
+    backgroundColor: colors.brand[200],
   },
   stopCard: {
+    flex: 1,
     gap: spacing[3],
+    marginBottom: spacing[3],
   },
   stopHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing[2],
   },
-  stopCopy: {
-    flex: 1,
-    gap: spacing[1],
-  },
   actions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
   },
-  stopFields: {
-    gap: spacing[3],
+  durationButton: {
+    minHeight: layout.minTouchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing[2],
+    paddingHorizontal: spacing[3],
+    borderRadius: radii.pill,
+    backgroundColor: colors.brand[50],
   },
 });

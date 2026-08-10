@@ -15,6 +15,7 @@ import type {
   ItineraryStop,
   StopAssessment,
 } from '@/types/itinerary';
+import type { Destination } from '@/types/destination';
 
 const fallbackImage = require('@/assets/images/logo-glow.png');
 
@@ -25,16 +26,17 @@ type TimelineStopProps = {
   isLast: boolean;
 };
 
-function TimelineDestinationImage({
+function CatalogTimelineDestinationImage({
   stop,
+  destination,
 }: {
   stop: ItineraryStop;
+  destination: Destination;
 }) {
   const { t } = useTranslation('itinerary');
-  const destination = destinations.find((item) => item.id === stop.destinationId);
   const image = useDestinationImage(
     stop.destinationId,
-    destination?.imageQuery ?? `${stop.destinationNameSnapshot} Bali`,
+    destination.imageQuery,
   );
 
   return (
@@ -67,9 +69,35 @@ function TimelineDestinationImage({
   );
 }
 
+function TimelineDestinationImage({ stop }: { stop: ItineraryStop }) {
+  const { t } = useTranslation('itinerary');
+  const destination = destinations.find((item) => item.id === stop.destinationId);
+
+  if (stop.place.source === 'custom-map-point' || !destination) {
+    return (
+      <View style={styles.imageContainer}>
+        <Image
+          source={fallbackImage}
+          contentFit="cover"
+          accessibilityLabel={t('timeline.imageAccessibility', {
+            name: stop.destinationNameSnapshot,
+          })}
+          style={styles.image}
+        />
+      </View>
+    );
+  }
+
+  return <CatalogTimelineDestinationImage stop={stop} destination={destination} />;
+}
+
 function TimelineStop({ stop, assessment, showImage, isLast }: TimelineStopProps) {
   const { t } = useTranslation('itinerary');
   const condition = assessment?.condition ?? stop.conditionSnapshot;
+  const destination = destinations.find((item) => item.id === stop.destinationId);
+  const isIntelligenceUnavailable =
+    stop.place.source === 'custom-map-point' ||
+    destination?.intelligenceCoverage !== 'pilot';
 
   return (
     <View style={styles.row}>
@@ -102,6 +130,11 @@ function TimelineStop({ stop, assessment, showImage, isLast }: TimelineStopProps
               {t('timeline.predictedOccupancy', {
                 level: t(`occupancy.${condition.occupancy.status}`),
               })}
+            </AppText>
+          )}
+          {!condition && isIntelligenceUnavailable && (
+            <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+              {t('timeline.intelligenceUnavailable')}
             </AppText>
           )}
           <View style={styles.metadata}>

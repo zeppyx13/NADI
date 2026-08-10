@@ -159,6 +159,7 @@ export class LocalItineraryService implements ItineraryService {
         status: current.status === 'active' ? 'active' : 'approved',
         version,
         approvedPlan: clonePlan(recommendation.proposedPlan),
+        latestAnalysis: null,
         changeHistory: [
           ...current.changeHistory,
           {
@@ -188,6 +189,7 @@ export class LocalItineraryService implements ItineraryService {
         status: current.status === 'active' ? 'active' : 'approved',
         version,
         approvedPlan: clonePlan(current.approvedPlan ?? current.originalPlan),
+        latestAnalysis: null,
         changeHistory: [
           ...current.changeHistory,
           {
@@ -224,8 +226,28 @@ export class LocalItineraryService implements ItineraryService {
       startedAt: current.startedAt ?? now,
       updatedAt: now,
     };
+    const itineraries = state.itineraries.map((item): Itinerary => {
+      if (item.id === id) return updated;
+      if (item.status !== 'active') return item;
+
+      const pausedPlan = item.approvedPlan
+        ? {
+            ...clonePlan(item.approvedPlan),
+            stops: item.approvedPlan.stops.map((stop) => ({
+              ...stop,
+              status: stop.status === 'current' ? 'upcoming' as const : stop.status,
+            })),
+          }
+        : null;
+      return {
+        ...item,
+        status: 'approved',
+        approvedPlan: pausedPlan,
+        updatedAt: now,
+      };
+    });
     await writeItineraryStorage({
-      itineraries: state.itineraries.map((item) => (item.id === id ? updated : item)),
+      itineraries,
       activeItineraryId: id,
     });
     return updated;

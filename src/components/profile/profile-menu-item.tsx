@@ -47,22 +47,22 @@ export function ProfileMenuItem({
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: layout.minTouchTarget + spacing[2],
+    minHeight: layout.minTouchTarget + spacing[3],
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
+    paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
-    borderRadius: radii.md,
   },
   pressed: {
     backgroundColor: colors.brand[50],
   },
   iconContainer: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radii.md,
+    borderRadius: radii.sm,
     backgroundColor: colors.brand[50],
   },
   copy: {

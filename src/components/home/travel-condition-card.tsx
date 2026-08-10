@@ -1,4 +1,4 @@
-import { Activity, MapPinned, TriangleAlert, UsersRound } from 'lucide-react-native';
+import { Activity } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -6,8 +6,6 @@ import { SimulationBadge } from '@/components/status/simulation-badge';
 import { AppButton, AppCard, AppText } from '@/components/ui';
 import { colors, iconSizes, radii, spacing } from '@/constants/theme';
 import type { TravelConditionSummary, TravelConditionStatus } from '@/types/home';
-
-import { HomeMapPreview } from './home-map-preview';
 
 export type TravelConditionCardProps = {
   summary: TravelConditionSummary;
@@ -72,32 +70,6 @@ export function TravelConditionCard({
         </View>
       </View>
 
-      <View style={styles.metrics}>
-        <View style={styles.metric}>
-          <UsersRound size={iconSizes.button} color={colors.semantic.warning.text} />
-          <AppText variant="headingSm">{summary.crowdedAreaCount}</AppText>
-          <AppText variant="caption" color={colors.neutral.textSecondary}>
-            {t('travelConditions.crowdedAreas')}
-          </AppText>
-        </View>
-        <View style={styles.metric}>
-          <TriangleAlert size={iconSizes.button} color={colors.semantic.danger.text} />
-          <AppText variant="headingSm">{summary.activeIncidentCount}</AppText>
-          <AppText variant="caption" color={colors.neutral.textSecondary}>
-            {t('travelConditions.incidents')}
-          </AppText>
-        </View>
-        <View style={styles.metric}>
-          <MapPinned size={iconSizes.button} color={colors.teal[700]} />
-          <AppText variant="headingSm">{summary.nearbyDestinationCount}</AppText>
-          <AppText variant="caption" color={colors.neutral.textSecondary}>
-            {t('travelConditions.nearbyDestinations')}
-          </AppText>
-        </View>
-      </View>
-
-      <HomeMapPreview onPress={onOpenMap} />
-
       <View style={styles.footer}>
         <AppText variant="caption" color={colors.neutral.textMuted}>
           {t('travelConditions.updatedAt', { time: updatedTime })}
@@ -141,20 +113,6 @@ const styles = StyleSheet.create({
   statusCopy: {
     flex: 1,
     gap: spacing[1],
-  },
-  metrics: {
-    flexDirection: 'row',
-    gap: spacing[2],
-  },
-  metric: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    gap: spacing[1],
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[1],
-    borderRadius: radii.md,
-    backgroundColor: colors.neutral.surfaceSoft,
   },
   footer: {
     flexDirection: 'row',
