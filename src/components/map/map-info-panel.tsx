@@ -20,7 +20,7 @@ import {
 } from '@/constants/theme';
 import type { Destination } from '@/types/destination';
 import type { ItineraryPlace } from '@/types/itinerary';
-import type { MapInteractionMode } from '@/types/map';
+import type { MapInteractionMode, MapPlaceResult } from '@/types/map';
 
 type MapPanelAction = {
   label: string;
@@ -30,6 +30,8 @@ type MapPanelAction = {
 export type MapInfoPanelProps = {
   mode: MapInteractionMode;
   selectedDestination?: Destination;
+  selectedPlace?: MapPlaceResult;
+  onClearPlace?: () => void;
   activePlace?: ItineraryPlace;
   routeMode: RouteMode;
   selectedTravelMinutes?: number;
@@ -51,6 +53,8 @@ const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
 export function MapInfoPanel({
   mode,
   selectedDestination,
+  selectedPlace,
+  onClearPlace,
   activePlace,
   routeMode,
   selectedTravelMinutes,
@@ -150,6 +154,36 @@ export function MapInfoPanel({
               </View>
             )}
           </View>
+        )}
+      </AppCard>
+    );
+  } else if (mode === 'place-selected' && selectedPlace) {
+    panel = (
+      <AppCard variant="elevated" style={styles.panel}>
+        <View style={styles.titleRow}>
+          <View style={styles.copy}>
+            <AppText variant="caption" color={colors.neutral.textSecondary}>
+              {t('map.panel.placeSource')}
+            </AppText>
+            <AppText variant="headingMd">{selectedPlace.name}</AppText>
+            {selectedPlace.address && (
+              <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+                {selectedPlace.address}
+              </AppText>
+            )}
+          </View>
+        </View>
+        <AppText variant="caption" color={colors.neutral.textSecondary}>
+          {t('map.panel.placeNoIntelligence')}
+        </AppText>
+        {onClearPlace && (
+          <AppButton
+            fullWidth
+            size="sm"
+            variant="secondary"
+            label={t('map.panel.clearPlace')}
+            onPress={onClearPlace}
+          />
         )}
       </AppCard>
     );

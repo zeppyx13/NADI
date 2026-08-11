@@ -137,6 +137,7 @@ export const itineraryId = {
     add: 'Gunakan titik ini',
     selectFirst: 'Pilih titik pada peta terlebih dahulu.',
     mapAccessibility: 'Peta untuk memilih titik lokasi',
+    selectedMarker: 'Titik yang dipilih di peta',
   },
   duration: {
     'half-day': 'Setengah hari',

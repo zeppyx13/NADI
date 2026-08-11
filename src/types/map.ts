@@ -2,6 +2,16 @@ import type { RouteRisk } from '@/types/itinerary';
 
 export type MapCoordinate = [longitude: number, latitude: number];
 
+export type MapLatLng = {
+  latitude: number;
+  longitude: number;
+};
+
+export type MapRegion = MapLatLng & {
+  latitudeDelta: number;
+  longitudeDelta: number;
+};
+
 export type MapViewportPadding = {
   top: number;
   right: number;
@@ -9,8 +19,18 @@ export type MapViewportPadding = {
   left: number;
 };
 
+/**
+ * NADI never treats every map point as an internal destination.
+ * The source keeps Google results, NADI catalog entries, and manual points apart.
+ */
+export type MapPlaceSource =
+  | 'nadi-destination'
+  | 'google-place'
+  | 'custom-map-point';
+
 export type MapInteractionMode =
   | 'explore'
+  | 'place-selected'
   | 'destination-selected'
   | 'route-preview'
   | 'active-journey'
@@ -25,14 +45,33 @@ export type MapRouteVisualState =
   | 'alternative'
   | 'affected';
 
+/**
+ * Visibility only. Hiding a layer never removes the data from NADI reasoning.
+ */
 export type MapLayerVisibility = {
-  destinations: boolean;
-  incidents: boolean;
-  crowd: boolean;
-  safety: boolean;
   routes: boolean;
+  itineraryStops: boolean;
+  traffic: boolean;
+  incidents: boolean;
+  cctvAtcs: boolean;
+  destinations: boolean;
+  crowd: boolean;
+  parking: boolean;
+  safety: boolean;
   userLocation: boolean;
-  customPlaces: boolean;
+};
+
+export type MapLayerId = keyof MapLayerVisibility;
+
+export type MapLayerGroupId =
+  | 'journey'
+  | 'mobility'
+  | 'tourism'
+  | 'safety';
+
+export type MapLayerGroup = {
+  id: MapLayerGroupId;
+  layers: readonly MapLayerId[];
 };
 
 export type MapSafetyCondition = {
@@ -41,9 +80,33 @@ export type MapSafetyCondition = {
 
 export type MapRouteLine = {
   id: string;
-  coordinates: readonly MapCoordinate[];
+  coordinates: readonly MapLatLng[];
   visualState: MapRouteVisualState;
 };
+
+/**
+ * A place the user can pick from search. Google suggestions already carry
+ * coordinates, so no second lookup is needed before moving the camera.
+ */
+export type MapPlaceResult = {
+  id: string;
+  source: MapPlaceSource;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  /** Present when the result comes from the NADI catalog. */
+  destinationId?: string;
+  /** Present when the result comes from Google Places. */
+  placeId?: string;
+};
+
+export type MapPlaceSearchStatus =
+  | 'idle'
+  | 'searching'
+  | 'ready'
+  | 'unavailable'
+  | 'error';
 
 export type MapDestinationPressResult =
   | {
@@ -52,6 +115,6 @@ export type MapDestinationPressResult =
     }
   | {
       type: 'cluster';
-      coordinate: MapCoordinate;
-      zoom: number;
+      coordinate: MapLatLng;
+      region: MapRegion;
     };

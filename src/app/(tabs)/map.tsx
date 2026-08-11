@@ -1,13 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  Layers3,
-  LocateFixed,
-  Search,
-  SlidersHorizontal,
-} from 'lucide-react-native';
+import { Layers3, LocateFixed, SlidersHorizontal } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Keyboard,
   Pressable,
   StyleSheet,
   View,
@@ -16,14 +12,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { DestinationPicker } from '@/components/itinerary/destination-picker';
 import { MapCanvas } from '@/components/map/map-canvas';
+import { MapFilterSheet } from '@/components/map/map-filter-sheet';
 import { MapInfoPanel } from '@/components/map/map-info-panel';
-import {
-  MapOptionsSheet,
-  type MapOptionItem,
-} from '@/components/map/map-options-sheet';
+import { MapSearchBar } from '@/components/map/map-search-bar';
 import { AppText, IconButton } from '@/components/ui';
+import { initialLayerVisibility } from '@/constants/map';
 import {
   colors,
   iconSizes,
@@ -38,13 +32,16 @@ import { travelAlerts } from '@/data/alerts';
 import { destinations } from '@/data/destinations';
 import {
   defaultItineraryStartLocation,
-  destinationScenarioConditions,
   getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
+import { useCurrentLocation } from '@/hooks/use-current-location';
+import { usePlaceSearch } from '@/hooks/use-place-search';
 import type { Destination } from '@/types/destination';
 import type {
   MapInteractionMode,
+  MapLayerId,
   MapLayerVisibility,
+  MapPlaceResult,
   MapRouteVisualState,
 } from '@/types/map';
 import type { TravelAlert } from '@/types/travel-alert';
@@ -53,34 +50,6 @@ import {
   isEventRelevantToItinerary,
   isRouteDisruptionAlert,
 } from '@/utils/itinerary';
-
-type MapFilter = 'all' | 'destinations' | 'crowded' | 'safe' | 'incidents';
-type PublicMapLayer = 'destinations' | 'crowd' | 'incidents' | 'safety';
-
-const mapFilters: readonly MapFilter[] = [
-  'all',
-  'destinations',
-  'crowded',
-  'incidents',
-  'safe',
-];
-
-const publicMapLayers: readonly PublicMapLayer[] = [
-  'destinations',
-  'crowd',
-  'incidents',
-  'safety',
-];
-
-const initialLayerVisibility: MapLayerVisibility = {
-  destinations: true,
-  incidents: true,
-  crowd: false,
-  safety: false,
-  routes: true,
-  userLocation: true,
-  customPlaces: true,
-};
 
 const incidentAlerts = travelAlerts.filter((alert) =>
   ['incident', 'traffic', 'road-closure'].includes(alert.type),
@@ -97,9 +66,11 @@ export default function MapScreen() {
     alertId?: string;
     itineraryId?: string;
   }>();
-  const [activeFilter, setActiveFilter] = useState<MapFilter>('all');
+  const search = usePlaceSearch();
+  const currentLocation = useCurrentLocation();
   const [mode, setMode] = useState<MapInteractionMode>('explore');
   const [selectedDestination, setSelectedDestination] = useState<Destination>();
+  const [selectedPlace, setSelectedPlace] = useState<MapPlaceResult>();
   const [routeModeOverride, setRouteModeOverride] = useState<RouteMode | null>(
     null,
   );
@@ -107,9 +78,8 @@ export default function MapScreen() {
     initialLayerVisibility,
   );
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [panelHeight, setPanelHeight] = useState(0);
   const requestedReanalysis = useRef<string | null>(null);
   const itinerarySessionKeyRef = useRef<string | null>(null);
@@ -161,10 +131,7 @@ export default function MapScreen() {
   const routeMode =
     routeModeOverride ?? mapItinerary?.preferences.routePreference ?? 'balanced';
   const selectedTravelMinutes = displayedDestination
-    ? getTravelMinutesBetween(
-        routeOriginLocation,
-        displayedDestination,
-      )
+    ? getTravelMinutesBetween(routeOriginLocation, displayedDestination)
     : undefined;
   const latestAnalysis = mapItinerary?.latestAnalysis;
   const hasAppliedLatestAnalysis = Boolean(
@@ -189,12 +156,15 @@ export default function MapScreen() {
     if (itinerarySessionKeyRef.current === itinerarySessionKey) return;
     itinerarySessionKeyRef.current = itinerarySessionKey;
     setSelectedDestination(undefined);
+    setSelectedPlace(undefined);
     setMode('explore');
     setRouteModeOverride(null);
   }, [itinerarySessionKey]);
 
   let baseMode: MapInteractionMode = 'explore';
-  if (selectedDestination && !params.alertId) {
+  if (selectedPlace) {
+    baseMode = 'place-selected';
+  } else if (selectedDestination && !params.alertId) {
     baseMode = mode;
   } else if (
     mapItinerary &&
@@ -244,29 +214,9 @@ export default function MapScreen() {
     selectedAlert,
   ]);
 
-  const displayedFilter: MapFilter = params.alertId ? 'incidents' : activeFilter;
-  const filteredDestinations = useMemo(
-    () =>
-      destinations.filter((destination) => {
-        if (displayedFilter === 'incidents') return false;
-        if (displayedFilter === 'crowded') {
-          return Boolean(
-            destination.occupancyLevel &&
-              ['high', 'critical'].includes(destination.occupancyLevel),
-          );
-        }
-        if (displayedFilter === 'safe') {
-          return (
-            destinationScenarioConditions[destination.id]?.routeRisk === 'low'
-          );
-        }
-        return true;
-      }),
-    [displayedFilter],
-  );
   const canvasDestinations = useMemo(() => {
     const visibleById = new Map(
-      filteredDestinations.map((destination) => [destination.id, destination]),
+      destinations.map((destination) => [destination.id, destination]),
     );
     if (itineraryDestination) {
       visibleById.set(itineraryDestination.id, itineraryDestination);
@@ -275,7 +225,7 @@ export default function MapScreen() {
       visibleById.set(displayedDestination.id, displayedDestination);
     }
     return [...visibleById.values()];
-  }, [displayedDestination, filteredDestinations, itineraryDestination]);
+  }, [displayedDestination, itineraryDestination]);
   const priorityDestinationIds = useMemo(
     () =>
       itineraryDestination || displayedDestination
@@ -290,7 +240,10 @@ export default function MapScreen() {
     [displayedDestination, itineraryDestination],
   );
   const canvasAlerts = useMemo(() => {
-    if (!selectedAlert || incidentAlerts.some((alert) => alert.id === selectedAlert.id)) {
+    if (
+      !selectedAlert ||
+      incidentAlerts.some((alert) => alert.id === selectedAlert.id)
+    ) {
       return incidentAlerts;
     }
     return [...incidentAlerts, selectedAlert];
@@ -307,21 +260,11 @@ export default function MapScreen() {
   const effectiveLayerVisibility = useMemo<MapLayerVisibility>(
     () => ({
       ...layerVisibility,
-      destinations:
-        layerVisibility.destinations && displayedFilter !== 'incidents',
-      incidents:
-        Boolean(selectedAlert) ||
-        (layerVisibility.incidents &&
-          (displayedFilter === 'all' || displayedFilter === 'incidents')),
-      crowd:
-        layerVisibility.crowd &&
-        (displayedFilter === 'all' || displayedFilter === 'crowded'),
-      safety:
-        layerVisibility.safety &&
-        (displayedFilter === 'all' || displayedFilter === 'safe'),
+      // A deep link to an alert always shows that alert, whatever the toggle says.
+      incidents: Boolean(selectedAlert) || layerVisibility.incidents,
       routes: layerVisibility.routes && showRoute,
     }),
-    [displayedFilter, layerVisibility, selectedAlert, showRoute],
+    [layerVisibility, selectedAlert, showRoute],
   );
   const mapPadding = useMemo(
     () => ({
@@ -333,40 +276,55 @@ export default function MapScreen() {
     [insets.top, panelHeight],
   );
 
+  const closeSearch = () => {
+    setIsSearchExpanded(false);
+    Keyboard.dismiss();
+  };
+
   const selectDestination = (destination: Destination) => {
     router.setParams({ destinationId: undefined, alertId: undefined });
+    setSelectedPlace(undefined);
     setSelectedDestination(destination);
     setMode('destination-selected');
   };
 
+  const selectSearchResult = (result: MapPlaceResult) => {
+    closeSearch();
+    search.clear();
+
+    if (result.source === 'nadi-destination' && result.destinationId) {
+      const destination = destinations.find(
+        (item) => item.id === result.destinationId,
+      );
+      if (destination) selectDestination(destination);
+      return;
+    }
+
+    router.setParams({ destinationId: undefined, alertId: undefined });
+    setSelectedDestination(undefined);
+    setMode('place-selected');
+    setSelectedPlace(result);
+  };
+
   const selectAlert = (alert: TravelAlert) => {
     setSelectedDestination(undefined);
+    setSelectedPlace(undefined);
     setMode('explore');
     router.setParams({ destinationId: undefined, alertId: alert.id });
   };
 
-  const selectFilter = (filter: MapFilter) => {
-    router.setParams({ alertId: undefined });
-    setActiveFilter(filter);
-    setLayerVisibility((current) => {
-      if (filter === 'destinations') return { ...current, destinations: true };
-      if (filter === 'crowded') {
-        return { ...current, destinations: true, crowd: true };
-      }
-      if (filter === 'incidents') return { ...current, incidents: true };
-      if (filter === 'safe') {
-        return { ...current, destinations: true, safety: true };
-      }
-      return current;
-    });
-    setIsFilterOpen(false);
-  };
-
-  const toggleLayer = (layer: PublicMapLayer) => {
+  const toggleLayer = (layer: MapLayerId) => {
     setLayerVisibility((current) => ({
       ...current,
       [layer]: !current[layer],
     }));
+  };
+
+  const recenter = () => {
+    closeSearch();
+    void currentLocation.resolve().finally(() => {
+      setRecenterSignal((current) => current + 1);
+    });
   };
 
   const showUnavailableDetail = () => {
@@ -397,23 +355,9 @@ export default function MapScreen() {
     setPanelHeight((current) => (current === nextHeight ? current : nextHeight));
   };
 
-  const filterButtonLabel =
-    displayedFilter === 'all'
-      ? t('map.filterButton')
-      : t(`map.filters.${displayedFilter}`);
-  const filterOptions: readonly MapOptionItem[] = mapFilters.map((filter) => ({
-    id: filter,
-    label: t(`map.filters.${filter}`),
-    selected: displayedFilter === filter,
-    onPress: () => selectFilter(filter),
-  }));
-  const layerOptions: readonly MapOptionItem[] = publicMapLayers.map((layer) => ({
-    id: layer,
-    label: t(`map.layerOptions.${layer}.label`),
-    description: t(`map.layerOptions.${layer}.description`),
-    selected: layerVisibility[layer],
-    onPress: () => toggleLayer(layer),
-  }));
+  const hasCustomLayers = (
+    Object.keys(initialLayerVisibility) as MapLayerId[]
+  ).some((layer) => layerVisibility[layer] !== initialLayerVisibility[layer]);
 
   return (
     <View style={styles.screen}>
@@ -422,9 +366,11 @@ export default function MapScreen() {
         alerts={canvasAlerts}
         selectedDestination={displayedDestination}
         selectedAlert={selectedAlert}
+        selectedPlace={selectedPlace}
         activePlace={activeItineraryPlace}
         customPlaces={customPlaces}
         startLocation={routeOriginLocation}
+        currentLocation={currentLocation.coordinate ?? undefined}
         priorityDestinationIds={priorityDestinationIds}
         routeRelevantAlertIds={routeRelevantAlertIds}
         layerVisibility={effectiveLayerVisibility}
@@ -434,57 +380,48 @@ export default function MapScreen() {
         mapPadding={mapPadding}
         onSelectDestination={selectDestination}
         onSelectAlert={selectAlert}
+        onMapPress={closeSearch}
       />
 
-      <View style={[styles.topOverlay, { paddingTop: insets.top + spacing[2] }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('map.searchAccessibility')}
-          onPress={() => setIsSearchOpen(true)}
-          style={({ pressed }) => [
-            styles.searchTrigger,
-            pressed && styles.controlPressed,
-          ]}
-        >
-          <Search size={iconSizes.inline} color={colors.neutral.iconMuted} />
-          <AppText
-            numberOfLines={1}
-            variant="bodyMd"
-            color={colors.neutral.textMuted}
-            style={styles.searchCopy}
-          >
-            {t('map.searchPlaceholder')}
-          </AppText>
-        </Pressable>
+      <View
+        pointerEvents="box-none"
+        style={[styles.topOverlay, { paddingTop: insets.top + spacing[2] }]}
+      >
+        <MapSearchBar
+          query={search.query}
+          onQueryChange={search.setQuery}
+          onClear={search.clear}
+          catalogResults={search.catalogResults}
+          googleResults={search.googleResults}
+          status={search.status}
+          isExpanded={isSearchExpanded}
+          onExpand={() => setIsSearchExpanded(true)}
+          onSelect={selectSearchResult}
+        />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('map.filterButton')}
           accessibilityState={{ expanded: isFilterOpen }}
-          onPress={() => setIsFilterOpen(true)}
+          onPress={() => {
+            closeSearch();
+            setIsFilterOpen(true);
+          }}
           style={({ pressed }) => [
             styles.filterButton,
-            displayedFilter !== 'all' && styles.filterButtonActive,
+            hasCustomLayers && styles.filterButtonActive,
             pressed && styles.controlPressed,
           ]}
         >
           <SlidersHorizontal
             size={iconSizes.inline}
-            color={
-              displayedFilter === 'all'
-                ? colors.brand[700]
-                : colors.neutral.white
-            }
+            color={hasCustomLayers ? colors.neutral.white : colors.brand[700]}
           />
           <AppText
             numberOfLines={1}
             variant="labelMd"
-            color={
-              displayedFilter === 'all'
-                ? colors.brand[700]
-                : colors.neutral.white
-            }
+            color={hasCustomLayers ? colors.neutral.white : colors.brand[700]}
           >
-            {filterButtonLabel}
+            {t('map.filterButton')}
           </AppText>
         </Pressable>
       </View>
@@ -494,13 +431,16 @@ export default function MapScreen() {
           variant="soft"
           accessibilityLabel={t('map.recenter')}
           icon={<LocateFixed size={iconSizes.header} color={colors.brand[700]} />}
-          onPress={() => setRecenterSignal((current) => current + 1)}
+          onPress={recenter}
         />
         <IconButton
           variant="soft"
           accessibilityLabel={t('map.layersAccessibility')}
           icon={<Layers3 size={iconSizes.header} color={colors.brand[700]} />}
-          onPress={() => setIsLayersOpen(true)}
+          onPress={() => {
+            closeSearch();
+            setIsFilterOpen(true);
+          }}
         />
       </View>
 
@@ -521,6 +461,11 @@ export default function MapScreen() {
         <MapInfoPanel
           mode={displayedMode}
           selectedDestination={displayedDestination}
+          selectedPlace={selectedPlace}
+          onClearPlace={() => {
+            setSelectedPlace(undefined);
+            setMode('explore');
+          }}
           activePlace={activeItineraryPlace}
           routeMode={routeMode}
           routeOriginName={routeOriginLocation.name}
@@ -544,8 +489,7 @@ export default function MapScreen() {
             displayedMode === 'active-journey'
               ? {
                   label: t('map.panel.continueJourney'),
-                  onPress: () =>
-                    setRecenterSignal((current) => current + 1),
+                  onPress: () => setRecenterSignal((current) => current + 1),
                 }
               : undefined
           }
@@ -572,33 +516,11 @@ export default function MapScreen() {
         />
       </View>
 
-      <DestinationPicker
-        visible={isSearchOpen}
-        title={t('map.searchTitle')}
-        mode="single"
-        selectedIds={displayedDestination ? [displayedDestination.id] : []}
-        onClose={() => setIsSearchOpen(false)}
-        onConfirm={(selected) => {
-          setIsSearchOpen(false);
-          const destination = selected[0];
-          if (destination) selectDestination(destination);
-        }}
-      />
-      <MapOptionsSheet
+      <MapFilterSheet
         visible={isFilterOpen}
-        title={t('map.filterTitle')}
-        description={t('map.filterDescription')}
-        selectionMode="single"
-        options={filterOptions}
+        layerVisibility={layerVisibility}
+        onToggleLayer={toggleLayer}
         onClose={() => setIsFilterOpen(false)}
-      />
-      <MapOptionsSheet
-        visible={isLayersOpen}
-        title={t('map.layersTitle')}
-        description={t('map.layersDescription')}
-        selectionMode="multiple"
-        options={layerOptions}
-        onClose={() => setIsLayersOpen(false)}
       />
     </View>
   );
@@ -616,24 +538,8 @@ const styles = StyleSheet.create({
     left: layout.screenPadding,
     right: layout.screenPadding,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing[2],
-  },
-  searchTrigger: {
-    flex: 1,
-    minHeight: layout.inputHeight,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    paddingHorizontal: spacing[4],
-    borderWidth: 1,
-    borderColor: colors.neutral.borderSoft,
-    borderRadius: radii.md,
-    backgroundColor: colors.neutral.white,
-    ...shadows.md,
-  },
-  searchCopy: {
-    flex: 1,
   },
   filterButton: {
     maxWidth: 118,

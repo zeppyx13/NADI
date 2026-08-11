@@ -1,27 +1,20 @@
-import {
-  Camera,
-  GeoJSONSource,
-  Layer,
-  Map,
-  type MapProps,
-  type StyleSpecification,
-} from '@maplibre/maplibre-react-native';
 import { X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Modal, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  type LongPressEvent,
+  type MapPressEvent,
+} from 'react-native-maps';
 
 import { AppButton, AppInput, AppText, IconButton } from '@/components/ui';
-import {
-  baliMapCenter,
-  baliMapZoom,
-  mapConfig,
-  mapFallbackStyle,
-} from '@/constants/map';
+import { baliRegion, cleanMapStyle } from '@/constants/map';
 import {
   colors,
   iconSizes,
@@ -31,12 +24,12 @@ import {
   spacing,
 } from '@/constants/theme';
 import type { ItineraryPlace } from '@/types/itinerary';
-import { isMapLibreNativeAvailable } from '@/utils/maplibre-polyfill';
-import { CustomMapPointPicker as CustomMapPointPickerFallback } from './custom-map-point-picker.web';
+import type { MapLatLng } from '@/types/map';
 
-type Coordinate = Pick<ItineraryPlace, 'latitude' | 'longitude'>;
-type MapPressHandler = NonNullable<MapProps['onPress']>;
-
+/**
+ * The `pick-location` surface of the NADI map: tap or long-press to place a
+ * point, name it, then confirm back to the caller.
+ */
 export type CustomMapPointPickerProps = {
   visible: boolean;
   title?: string;
@@ -44,14 +37,7 @@ export type CustomMapPointPickerProps = {
   onConfirm: (place: ItineraryPlace) => void;
 };
 
-export function CustomMapPointPicker(props: CustomMapPointPickerProps) {
-  if (!isMapLibreNativeAvailable()) {
-    return <CustomMapPointPickerFallback {...props} />;
-  }
-  return <NativeCustomMapPointPicker {...props} />;
-}
-
-function NativeCustomMapPointPicker({
+export function CustomMapPointPicker({
   visible,
   title,
   onClose,
@@ -59,12 +45,9 @@ function NativeCustomMapPointPicker({
 }: CustomMapPointPickerProps) {
   const { t } = useTranslation('itinerary');
   const insets = useSafeAreaInsets();
-  const [coordinate, setCoordinate] = useState<Coordinate | null>(null);
+  const [coordinate, setCoordinate] = useState<MapLatLng | null>(null);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [activeMapStyle, setActiveMapStyle] = useState<
-    string | StyleSpecification
-  >(mapConfig.style);
   const [bottomSheetHeight, setBottomSheetHeight] = useState(0);
   const mapBottomInset =
     bottomSheetHeight + insets.bottom + spacing[3] + spacing[2];
@@ -73,38 +56,11 @@ function NativeCustomMapPointPicker({
     setCoordinate(null);
     setName('');
     setError(null);
-    setActiveMapStyle(mapConfig.style);
   };
 
-  const selectedPoint = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
-    () => ({
-      type: 'FeatureCollection',
-      features: coordinate
-        ? [
-            {
-              type: 'Feature',
-              id: 'selected-custom-point',
-              geometry: {
-                type: 'Point',
-                coordinates: [coordinate.longitude, coordinate.latitude],
-              },
-              properties: {},
-            },
-          ]
-        : [],
-    }),
-    [coordinate],
-  );
-
-  const selectCoordinate: MapPressHandler = (event) => {
-    const [longitude, latitude] = event.nativeEvent.lngLat;
-    setCoordinate({ latitude, longitude });
+  const selectCoordinate = (event: MapPressEvent | LongPressEvent) => {
+    setCoordinate(event.nativeEvent.coordinate);
     setError(null);
-  };
-
-  const handleMapLoadFailure = () => {
-    if (activeMapStyle === mapFallbackStyle) return;
-    setActiveMapStyle(mapFallbackStyle);
   };
 
   const handleBottomSheetLayout = (event: LayoutChangeEvent) => {
@@ -138,74 +94,51 @@ function NativeCustomMapPointPicker({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <Map
+        <MapView
+          provider={PROVIDER_GOOGLE}
           style={StyleSheet.absoluteFill}
-          mapStyle={activeMapStyle}
-          compass={false}
-          scaleBar={false}
-          touchPitch={false}
-          touchRotate={false}
-          contentInset={{
-            top: 0,
-            right: 0,
-            bottom: mapBottomInset,
-            left: 0,
-          }}
-          attributionPosition={{
-            left: spacing[2],
-            bottom: mapBottomInset + spacing[1],
-          }}
-          logoPosition={{
-            left: spacing[2],
-            bottom: mapBottomInset + spacing[8],
-          }}
+          initialRegion={baliRegion}
+          customMapStyle={[...cleanMapStyle]}
+          mapPadding={{ top: 0, right: 0, bottom: mapBottomInset, left: 0 }}
+          showsCompass={false}
+          showsMyLocationButton={false}
+          toolbarEnabled={false}
+          pitchEnabled={false}
+          rotateEnabled={false}
           accessibilityLabel={t('customPoint.mapAccessibility')}
           onPress={selectCoordinate}
           onLongPress={selectCoordinate}
-          onDidFailLoadingMap={handleMapLoadFailure}
         >
-          <Camera
-            initialViewState={{
-              center: [...baliMapCenter],
-              zoom: baliMapZoom,
-            }}
-          />
           {coordinate && (
-            <GeoJSONSource id="custom-point-source" data={selectedPoint}>
-              <Layer
-                id="custom-point-halo"
-                type="circle"
-                paint={{
-                  'circle-color': colors.neutral.white,
-                  'circle-opacity': 0.95,
-                  'circle-radius': 14,
-                }}
-              />
-              <Layer
-                id="custom-point-marker"
-                type="circle"
-                paint={{
-                  'circle-color': colors.teal[600],
-                  'circle-radius': 9,
-                  'circle-stroke-color': colors.neutral.white,
-                  'circle-stroke-width': 3,
-                }}
-              />
-            </GeoJSONSource>
+            <Marker
+              identifier="custom-map-point"
+              coordinate={coordinate}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              accessibilityLabel={t('customPoint.selectedMarker')}
+            >
+              <View style={styles.pinHalo}>
+                <View style={styles.pin} />
+              </View>
+            </Marker>
           )}
-        </Map>
+        </MapView>
 
         <SafeAreaView pointerEvents="box-none" style={StyleSheet.absoluteFill}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <AppText variant="headingSm">{title ?? t('customPoint.title')}</AppText>
+              <AppText variant="headingSm">
+                {title ?? t('customPoint.title')}
+              </AppText>
               <AppText variant="caption" color={colors.neutral.textSecondary}>
                 {t('customPoint.instruction')}
               </AppText>
             </View>
             <IconButton
               accessibilityLabel={t('common.cancel')}
-              icon={<X size={iconSizes.button} color={colors.neutral.textPrimary} />}
+              icon={
+                <X size={iconSizes.button} color={colors.neutral.textPrimary} />
+              }
               onPress={onClose}
             />
           </View>
@@ -219,7 +152,8 @@ function NativeCustomMapPointPicker({
             />
             {coordinate && (
               <AppText variant="caption" color={colors.neutral.textSecondary}>
-                {coordinate.latitude.toFixed(5)}, {coordinate.longitude.toFixed(5)}
+                {coordinate.latitude.toFixed(5)},{' '}
+                {coordinate.longitude.toFixed(5)}
               </AppText>
             )}
             {error && (
@@ -244,6 +178,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.brand[50],
+  },
+  pinHalo: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  },
+  pin: {
+    width: 18,
+    height: 18,
+    borderRadius: radii.pill,
+    borderWidth: 3,
+    borderColor: colors.neutral.white,
+    backgroundColor: colors.teal[600],
   },
   header: {
     flexDirection: 'row',

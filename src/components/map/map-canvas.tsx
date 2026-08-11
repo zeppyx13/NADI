@@ -1,69 +1,48 @@
-import {
-  Camera,
-  Map,
-  type CameraRef,
-  type StyleSpecification,
-} from '@maplibre/maplibre-react-native';
-import { useMemo, useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
-import {
-  CrowdLayer,
-  crowdLayerTopId,
-} from '@/components/map/layers/crowd-layer';
-import {
-  CustomPlaceLayer,
-  customPlaceLayerTopId,
-} from '@/components/map/layers/custom-place-layer';
-import {
-  DestinationLayer,
-  destinationLayerTopId,
-} from '@/components/map/layers/destination-layer';
-import {
-  IncidentLayer,
-  incidentLayerTopId,
-} from '@/components/map/layers/incident-layer';
-import {
-  RouteLayer,
-  routeLayerTopId,
-} from '@/components/map/layers/route-layer';
-import {
-  SafetyLayer,
-  safetyLayerTopId,
-} from '@/components/map/layers/safety-layer';
+import { CrowdLayer } from '@/components/map/layers/crowd-layer';
+import { CustomPlaceLayer } from '@/components/map/layers/custom-place-layer';
+import { DestinationLayer } from '@/components/map/layers/destination-layer';
+import { IncidentLayer } from '@/components/map/layers/incident-layer';
+import { RouteLayer } from '@/components/map/layers/route-layer';
+import { SafetyLayer } from '@/components/map/layers/safety-layer';
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer';
 import {
-  baliMapCenter,
-  baliMapZoom,
-  mapConfig,
-  mapFallbackStyle,
+  baliRegion,
+  cleanMapStyle,
   simulatedStartCoordinate,
 } from '@/constants/map';
-import { spacing } from '@/constants/theme';
+import { colors, radii } from '@/constants/theme';
 import { destinationScenarioConditions } from '@/data/itinerary-scenarios';
 import { useMapCamera } from '@/hooks/use-map-camera';
 import type { Destination } from '@/types/destination';
 import type { ItineraryLocation, ItineraryPlace } from '@/types/itinerary';
 import type {
-  MapCoordinate,
+  MapDestinationPressResult,
+  MapLatLng,
   MapLayerVisibility,
+  MapPlaceResult,
+  MapRegion,
   MapRouteLine,
   MapRouteVisualState,
   MapViewportPadding,
 } from '@/types/map';
 import type { TravelAlert } from '@/types/travel-alert';
-import { isMapLibreNativeAvailable } from '@/utils/maplibre-polyfill';
-import { MapCanvas as MapCanvasFallback } from './map-canvas.web';
 
 export type MapCanvasProps = {
   destinations: readonly Destination[];
   alerts: readonly TravelAlert[];
   selectedDestination?: Destination;
   selectedAlert?: TravelAlert;
+  /** Google Places result currently pinned on the map. */
+  selectedPlace?: MapPlaceResult;
   activePlace?: ItineraryPlace;
   customPlaces?: readonly ItineraryPlace[];
   startLocation?: ItineraryLocation;
+  currentLocation?: MapLatLng;
   priorityDestinationIds?: readonly string[];
   routeRelevantAlertIds?: readonly string[];
   layerVisibility: MapLayerVisibility;
@@ -73,33 +52,27 @@ export type MapCanvasProps = {
   mapPadding: MapViewportPadding;
   onSelectDestination: (destination: Destination) => void;
   onSelectAlert: (alert: TravelAlert) => void;
+  /** Fired for taps on the basemap itself, not on a marker. */
+  onMapPress?: () => void;
 };
 
 const emptyPlaces: readonly ItineraryPlace[] = [];
 const emptyAlertIds: readonly string[] = [];
 
-function toCoordinate(location: {
-  latitude: number;
-  longitude: number;
-}): MapCoordinate {
-  return [location.longitude, location.latitude];
+function toLatLng(location: MapLatLng): MapLatLng {
+  return { latitude: location.latitude, longitude: location.longitude };
 }
 
-export function MapCanvas(props: MapCanvasProps) {
-  if (!isMapLibreNativeAvailable()) {
-    return <MapCanvasFallback {...props} />;
-  }
-  return <NativeMapCanvas {...props} />;
-}
-
-function NativeMapCanvas({
+export function MapCanvas({
   destinations,
   alerts,
   selectedDestination,
   selectedAlert,
+  selectedPlace,
   activePlace,
   customPlaces = emptyPlaces,
   startLocation,
+  currentLocation,
   priorityDestinationIds = [],
   routeRelevantAlertIds = emptyAlertIds,
   layerVisibility,
@@ -109,34 +82,38 @@ function NativeMapCanvas({
   mapPadding,
   onSelectDestination,
   onSelectAlert,
+  onMapPress,
 }: MapCanvasProps) {
   const { t } = useTranslation('screens');
-  const cameraRef = useRef<CameraRef>(null);
+  const mapRef = useRef<MapView>(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [activeMapStyle, setActiveMapStyle] = useState<
-    string | StyleSpecification
-  >(mapConfig.style);
+  const [region, setRegion] = useState<MapRegion>(baliRegion);
 
+  const routeOrigin = currentLocation ?? startLocation ?? simulatedStartCoordinate;
   const routeTarget = selectedDestination ?? activePlace;
-  const routeOrigin = startLocation ?? simulatedStartCoordinate;
-  const routeCoordinates = useMemo<readonly MapCoordinate[]>(() => {
-    if (!routeTarget) return [];
 
-    const origin = toCoordinate(routeOrigin);
-    const target = toCoordinate(routeTarget);
+  /**
+   * Local placeholder geometry. Real Google routing arrives in a later phase;
+   * this only keeps the existing itinerary preview visible after the migration.
+   */
+  const routeCoordinates = useMemo<readonly MapLatLng[]>(() => {
+    if (!routeTarget) return [];
+    const origin = toLatLng(routeOrigin);
+    const target = toLatLng(routeTarget);
     return [
       origin,
-      [
-        origin[0] * 0.67 + target[0] * 0.33,
-        origin[1] * 0.67 + target[1] * 0.33,
-      ],
-      [
-        origin[0] * 0.33 + target[0] * 0.67,
-        origin[1] * 0.33 + target[1] * 0.67,
-      ],
+      {
+        latitude: origin.latitude * 0.67 + target.latitude * 0.33,
+        longitude: origin.longitude * 0.67 + target.longitude * 0.33,
+      },
+      {
+        latitude: origin.latitude * 0.33 + target.latitude * 0.67,
+        longitude: origin.longitude * 0.33 + target.longitude * 0.67,
+      },
       target,
     ];
   }, [routeOrigin, routeTarget]);
+
   const routes = useMemo<readonly MapRouteLine[]>(
     () =>
       showRoute && routeCoordinates.length > 1
@@ -152,28 +129,33 @@ function NativeMapCanvas({
   );
 
   const focusCoordinate = selectedAlert
-    ? toCoordinate(selectedAlert)
-    : routeTarget
-      ? toCoordinate(routeTarget)
-      : undefined;
+    ? toLatLng(selectedAlert)
+    : selectedPlace
+      ? toLatLng(selectedPlace)
+      : routeTarget
+        ? toLatLng(routeTarget)
+        : undefined;
   const focusKey = selectedAlert
     ? `alert:${selectedAlert.id}`
-    : routeTarget
-      ? `place:${routeTarget.id}`
-      : undefined;
-  const cameraRouteCoordinates = useMemo<readonly MapCoordinate[]>(
+    : selectedPlace
+      ? `place:${selectedPlace.id}`
+      : routeTarget
+        ? `destination:${routeTarget.id}`
+        : undefined;
+  const cameraRouteCoordinates = useMemo<readonly MapLatLng[]>(
     () =>
       showRoute && selectedAlert
-        ? [...routeCoordinates, toCoordinate(selectedAlert)]
+        ? [...routeCoordinates, toLatLng(selectedAlert)]
         : routeCoordinates,
     [routeCoordinates, selectedAlert, showRoute],
   );
   const viewportRevision = `${mapPadding.top}:${mapPadding.right}:${mapPadding.bottom}:${mapPadding.left}`;
 
-  const { focusCluster } = useMapCamera({
-    cameraRef,
+  const { focusRegion } = useMapCamera({
+    mapRef,
     isMapReady,
     recenterSignal,
+    recenterTarget: currentLocation,
     focusKey,
     focusCoordinate,
     routeCoordinates: cameraRouteCoordinates,
@@ -181,85 +163,59 @@ function NativeMapCanvas({
     viewportRevision,
   });
 
-  const handleDestinationPress = (result: {
-    type: 'destination';
-    destinationId: string;
-  } | {
-    type: 'cluster';
-    coordinate: MapCoordinate;
-    zoom: number;
-  }) => {
-    if (result.type === 'cluster') {
-      focusCluster(result.coordinate, result.zoom);
-      return;
-    }
+  const handleDestinationPress = useCallback(
+    (result: MapDestinationPressResult) => {
+      if (result.type === 'cluster') {
+        focusRegion(result.region);
+        return;
+      }
+      const destination = destinations.find(
+        (item) => item.id === result.destinationId,
+      );
+      if (destination) onSelectDestination(destination);
+    },
+    [destinations, focusRegion, onSelectDestination],
+  );
 
-    const destination = destinations.find(
-      (item) => item.id === result.destinationId,
-    );
-    if (destination) onSelectDestination(destination);
-  };
-
-  const handleAlertPress = (alertId: string) => {
-    const alert = alerts.find((item) => item.id === alertId);
-    if (alert) onSelectAlert(alert);
-  };
-
-  const handleMapLoadFailure = () => {
-    if (activeMapStyle === mapFallbackStyle) return;
-    setIsMapReady(false);
-    setActiveMapStyle(mapFallbackStyle);
-  };
+  const handleAlertPress = useCallback(
+    (alertId: string) => {
+      const alert = alerts.find((item) => item.id === alertId);
+      if (alert) onSelectAlert(alert);
+    },
+    [alerts, onSelectAlert],
+  );
 
   return (
-    <Map
+    <MapView
+      ref={mapRef}
+      provider={PROVIDER_GOOGLE}
       style={StyleSheet.absoluteFill}
-      mapStyle={activeMapStyle}
-      contentInset={mapPadding}
-      androidView="surface"
-      compass={false}
-      scaleBar={false}
-      touchPitch={false}
+      initialRegion={baliRegion}
+      customMapStyle={[...cleanMapStyle]}
+      mapPadding={mapPadding}
+      showsCompass={false}
+      showsMyLocationButton={false}
+      showsUserLocation={false}
+      toolbarEnabled={false}
+      pitchEnabled={false}
+      rotateEnabled={false}
       accessibilityLabel={t('map.mapAccessibility')}
-      attributionPosition={{
-        left: spacing[2],
-        bottom: mapPadding.bottom + spacing[1],
-      }}
-      logoPosition={{
-        left: spacing[2],
-        bottom: mapPadding.bottom + spacing[8],
-      }}
-      onDidFinishLoadingMap={() => setIsMapReady(true)}
-      onDidFailLoadingMap={handleMapLoadFailure}
+      onMapReady={() => setIsMapReady(true)}
+      onRegionChangeComplete={setRegion}
+      onPress={onMapPress ? () => onMapPress() : undefined}
     >
-      <Camera
-        ref={cameraRef}
-        initialViewState={{
-          center: [...baliMapCenter],
-          zoom: baliMapZoom,
-        }}
-      />
-
-      <CrowdLayer
-        destinations={destinations}
-        visible={layerVisibility.crowd}
-      />
+      <CrowdLayer destinations={destinations} visible={layerVisibility.crowd} />
       <SafetyLayer
         destinations={destinations}
         conditionsByDestinationId={destinationScenarioConditions}
-        afterId={crowdLayerTopId}
         visible={layerVisibility.safety}
       />
-      <RouteLayer
-        routes={routes}
-        afterId={safetyLayerTopId}
-        visible={layerVisibility.routes}
-      />
+      <RouteLayer routes={routes} visible={layerVisibility.routes} />
       <DestinationLayer
         destinations={destinations}
+        region={region}
         selectedDestinationId={selectedDestination?.id}
         priorityDestinationIds={priorityDestinationIds}
-        afterId={routeLayerTopId}
         visible={layerVisibility.destinations}
         onPress={handleDestinationPress}
       />
@@ -267,7 +223,6 @@ function NativeMapCanvas({
         alerts={alerts}
         selectedAlertId={selectedAlert?.id}
         routeRelevantAlertIds={routeRelevantAlertIds}
-        afterId={destinationLayerTopId}
         visible={layerVisibility.incidents}
         onPress={handleAlertPress}
       />
@@ -276,14 +231,36 @@ function NativeMapCanvas({
         selectedPlaceId={
           activePlace?.source === 'custom-map-point' ? activePlace.id : undefined
         }
-        afterId={incidentLayerTopId}
-        visible={layerVisibility.customPlaces}
+        visible={layerVisibility.itineraryStops}
       />
       <UserLocationLayer
-        coordinate={toCoordinate(routeOrigin)}
-        afterId={customPlaceLayerTopId}
+        coordinate={toLatLng(routeOrigin)}
+        isDeviceLocation={Boolean(currentLocation)}
         visible={layerVisibility.userLocation}
       />
-    </Map>
+
+      {selectedPlace && (
+        <Marker
+          identifier={selectedPlace.id}
+          coordinate={toLatLng(selectedPlace)}
+          tracksViewChanges={false}
+          zIndex={7}
+          accessibilityLabel={selectedPlace.name}
+        >
+          <View style={styles.placeMarker} />
+        </Marker>
+      )}
+    </MapView>
   );
 }
+
+const styles = StyleSheet.create({
+  placeMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: radii.pill,
+    borderWidth: 4,
+    borderColor: colors.neutral.white,
+    backgroundColor: colors.brand[700],
+  },
+});

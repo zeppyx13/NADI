@@ -1,58 +1,60 @@
-import { GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { Marker } from 'react-native-maps';
 
-import { userLocationToGeoJSON } from '@/components/map/map-geojson';
-import { colors, iconSizes } from '@/constants/theme';
-import type { MapCoordinate } from '@/types/map';
-
-const sourceId = 'nadi-user-location';
-
-const layerIds = {
-  halo: 'nadi-user-location-halo',
-  point: 'nadi-user-location-point',
-} as const;
-
-export const userLocationLayerTopId = layerIds.point;
+import { colors, radii } from '@/constants/theme';
+import type { MapLatLng } from '@/types/map';
 
 export type UserLocationLayerProps = {
-  coordinate?: MapCoordinate;
-  afterId?: string;
+  coordinate?: MapLatLng;
+  /** True when the coordinate comes from the device instead of the demo start. */
+  isDeviceLocation?: boolean;
   visible?: boolean;
 };
 
 export const UserLocationLayer = memo(function UserLocationLayer({
   coordinate,
-  afterId,
+  isDeviceLocation = false,
   visible = true,
 }: UserLocationLayerProps) {
-  const data = useMemo(() => userLocationToGeoJSON(coordinate), [coordinate]);
-  const visibility = visible ? 'visible' : 'none';
+  const { t } = useTranslation('screens');
+
+  if (!visible || !coordinate) return null;
 
   return (
-    <GeoJSONSource id={sourceId} data={data}>
-      <Layer
-        id={layerIds.halo}
-        type="circle"
-        afterId={afterId}
-        layout={{ visibility }}
-        paint={{
-          'circle-color': colors.brand[400],
-          'circle-opacity': 0.2,
-          'circle-radius': iconSizes.button / 1.25,
-        }}
-      />
-      <Layer
-        id={layerIds.point}
-        type="circle"
-        afterId={layerIds.halo}
-        layout={{ visibility }}
-        paint={{
-          'circle-color': colors.brand[600],
-          'circle-radius': iconSizes.badge / 2.6,
-          'circle-stroke-color': colors.neutral.white,
-          'circle-stroke-width': 3,
-        }}
-      />
-    </GeoJSONSource>
+    <Marker
+      identifier="nadi-user-location"
+      coordinate={coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+      zIndex={6}
+      accessibilityLabel={
+        isDeviceLocation ? t('map.myLocation') : t('map.userMarker')
+      }
+    >
+      <View style={styles.halo}>
+        <View style={styles.dot} />
+      </View>
+    </Marker>
   );
+});
+
+const styles = StyleSheet.create({
+  halo: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(78, 156, 226, 0.28)',
+  },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: radii.pill,
+    borderWidth: 3,
+    borderColor: colors.neutral.white,
+    backgroundColor: colors.brand[600],
+  },
 });

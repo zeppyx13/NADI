@@ -1,83 +1,51 @@
-import { GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
+import { Circle } from 'react-native-maps';
 
-import { pilotCrowdToGeoJSON } from '@/components/map/map-geojson';
-import { colors, iconSizes } from '@/constants/theme';
+import { colors } from '@/constants/theme';
+import type { OccupancyLevel } from '@/constants/theme';
 import type { Destination } from '@/types/destination';
 
-const sourceId = 'nadi-pilot-crowd';
-const layerId = 'nadi-pilot-crowd-halos';
+/** Halo radius in meters per occupancy level. */
+const crowdRadiusMeters: Record<OccupancyLevel, number> = {
+  low: 900,
+  moderate: 1200,
+  high: 1500,
+  critical: 1800,
+};
 
-export const crowdLayerTopId = layerId;
+function withAlpha(color: string, alpha: string): string {
+  return `${color}${alpha}`;
+}
 
 export type CrowdLayerProps = {
   destinations: readonly Destination[];
-  afterId?: string;
   visible?: boolean;
 };
 
 export const CrowdLayer = memo(function CrowdLayer({
   destinations,
-  afterId,
   visible = true,
 }: CrowdLayerProps) {
-  const data = useMemo(
-    () => pilotCrowdToGeoJSON(destinations),
-    [destinations],
-  );
+  if (!visible) return null;
 
   return (
-    <GeoJSONSource id={sourceId} data={data}>
-      <Layer
-        id={layerId}
-        type="circle"
-        afterId={afterId}
-        layout={{ visibility: visible ? 'visible' : 'none' }}
-        paint={{
-          'circle-color': [
-            'match',
-            ['get', 'occupancyLevel'],
-            'low',
-            colors.occupancy.low,
-            'moderate',
-            colors.occupancy.moderate,
-            'high',
-            colors.occupancy.high,
-            'critical',
-            colors.occupancy.critical,
-            colors.brand[500],
-          ],
-          'circle-opacity': 0.16,
-          'circle-radius': [
-            'match',
-            ['get', 'occupancyLevel'],
-            'low',
-            iconSizes.header,
-            'moderate',
-            iconSizes.header * 1.25,
-            'high',
-            iconSizes.header * 1.5,
-            'critical',
-            iconSizes.header * 1.75,
-            iconSizes.header,
-          ],
-          'circle-stroke-color': [
-            'match',
-            ['get', 'occupancyLevel'],
-            'low',
-            colors.occupancy.low,
-            'moderate',
-            colors.occupancy.moderate,
-            'high',
-            colors.occupancy.high,
-            'critical',
-            colors.occupancy.critical,
-            colors.brand[500],
-          ],
-          'circle-stroke-opacity': 0.5,
-          'circle-stroke-width': 1.5,
-        }}
-      />
-    </GeoJSONSource>
+    <>
+      {destinations.map((destination) => {
+        const level = destination.occupancyLevel;
+        if (!level) return null;
+        const color = colors.occupancy[level];
+        return (
+          <Circle
+            key={`crowd-${destination.id}`}
+            center={destination}
+            radius={crowdRadiusMeters[level]}
+            fillColor={withAlpha(color, '29')}
+            strokeColor={withAlpha(color, '80')}
+            strokeWidth={2}
+            zIndex={0}
+          />
+        );
+      })}
+    </>
   );
 });

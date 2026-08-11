@@ -137,6 +137,7 @@ export const itineraryEn = {
     add: 'Use this point',
     selectFirst: 'Select a point on the map first.',
     mapAccessibility: 'Map for selecting a location point',
+    selectedMarker: 'Selected point on the map',
   },
   duration: {
     'half-day': 'Half day',

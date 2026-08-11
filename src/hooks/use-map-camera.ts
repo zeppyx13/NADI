@@ -1,45 +1,50 @@
-import type { CameraRef, LngLatBounds } from '@maplibre/maplibre-react-native';
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
+import type MapView from 'react-native-maps';
 
-import { baliMapCenter, baliMapZoom } from '@/constants/map';
-import { motion } from '@/constants/theme';
-import type { MapCoordinate } from '@/types/map';
+import { baliRegion, mapRegionDeltas } from '@/constants/map';
+import { motion, spacing } from '@/constants/theme';
+import type { MapLatLng, MapRegion } from '@/types/map';
 
 type UseMapCameraOptions = {
-  cameraRef: RefObject<CameraRef | null>;
+  mapRef: RefObject<MapView | null>;
   isMapReady: boolean;
+  /** Increment to request an explicit recenter. */
   recenterSignal: number;
+  recenterTarget?: MapLatLng;
+  /** Changing key marks a new explicit selection, not a re-render. */
   focusKey?: string;
-  focusCoordinate?: MapCoordinate;
-  routeCoordinates: readonly MapCoordinate[];
+  focusCoordinate?: MapLatLng;
+  routeCoordinates: readonly MapLatLng[];
   fitRoute: boolean;
   viewportRevision: string;
 };
 
-function getCoordinateBounds(
-  coordinates: readonly MapCoordinate[],
-): LngLatBounds | null {
-  if (coordinates.length < 2) return null;
+const routeEdgePadding = {
+  top: spacing[12],
+  right: spacing[10],
+  bottom: spacing[12],
+  left: spacing[10],
+};
 
-  let west = coordinates[0][0];
-  let east = coordinates[0][0];
-  let south = coordinates[0][1];
-  let north = coordinates[0][1];
-
-  coordinates.slice(1).forEach(([longitude, latitude]) => {
-    west = Math.min(west, longitude);
-    east = Math.max(east, longitude);
-    south = Math.min(south, latitude);
-    north = Math.max(north, latitude);
-  });
-
-  return [west, south, east, north];
+function toRegion(coordinate: MapLatLng, delta: number): MapRegion {
+  return {
+    latitude: coordinate.latitude,
+    longitude: coordinate.longitude,
+    latitudeDelta: delta,
+    longitudeDelta: delta,
+  };
 }
 
+/**
+ * Central camera control. The camera only moves for explicit events: a picked
+ * search result, a tapped marker or cluster, a recenter press, or a confirmed
+ * custom point. Nothing here reacts to plain re-renders.
+ */
 export function useMapCamera({
-  cameraRef,
+  mapRef,
   isMapReady,
   recenterSignal,
+  recenterTarget,
   focusKey,
   focusCoordinate,
   routeCoordinates,
@@ -49,31 +54,42 @@ export function useMapCamera({
   const lastFocusKey = useRef<string | undefined>(undefined);
   const lastRouteKey = useRef<string | undefined>(undefined);
   const lastRecenterSignal = useRef(0);
-  const routeBounds = useMemo(
-    () => getCoordinateBounds(routeCoordinates),
-    [routeCoordinates],
+
+  const focusRegion = useCallback(
+    (region: MapRegion) => {
+      mapRef.current?.animateToRegion(region, motion.slow);
+    },
+    [mapRef],
   );
-  const routeKey = useMemo(
-    () =>
-      fitRoute
-        ? `${viewportRevision}:${routeCoordinates
-            .map(([longitude, latitude]) => `${longitude}:${latitude}`)
-            .join('|')}`
-        : '',
-    [fitRoute, routeCoordinates, viewportRevision],
+
+  const focusPlace = useCallback(
+    (coordinate: MapLatLng, delta: number = mapRegionDeltas.place) => {
+      focusRegion(toRegion(coordinate, delta));
+    },
+    [focusRegion],
   );
+
+  const resetOverview = useCallback(() => {
+    focusRegion(baliRegion);
+  }, [focusRegion]);
+
+  const focusRoute = useCallback(() => {
+    if (routeCoordinates.length < 2) return false;
+    mapRef.current?.fitToCoordinates([...routeCoordinates], {
+      edgePadding: routeEdgePadding,
+      animated: true,
+    });
+    return true;
+  }, [mapRef, routeCoordinates]);
+
+  const routeKey = fitRoute
+    ? `${viewportRevision}:${routeCoordinates
+        .map(({ latitude, longitude }) => `${latitude}:${longitude}`)
+        .join('|')}`
+    : '';
   const resolvedFocusKey = focusKey
     ? `${viewportRevision}:${focusKey}`
     : undefined;
-
-  const focusRoute = useCallback(() => {
-    if (!routeBounds) return false;
-    cameraRef.current?.fitBounds(routeBounds, {
-      duration: motion.routeTransition,
-      easing: 'ease',
-    });
-    return true;
-  }, [cameraRef, routeBounds]);
 
   useEffect(() => {
     if (!focusCoordinate || !resolvedFocusKey || fitRoute) {
@@ -82,23 +98,15 @@ export function useMapCamera({
     }
     if (!isMapReady || lastFocusKey.current === resolvedFocusKey) return;
     lastFocusKey.current = resolvedFocusKey;
-
-    cameraRef.current?.easeTo({
-      center: focusCoordinate,
-      zoom: 10.5,
-      duration: motion.slow,
-      easing: 'ease',
-    });
-  }, [cameraRef, fitRoute, focusCoordinate, isMapReady, resolvedFocusKey]);
+    focusPlace(focusCoordinate);
+  }, [fitRoute, focusCoordinate, focusPlace, isMapReady, resolvedFocusKey]);
 
   useEffect(() => {
     if (!fitRoute || !routeKey) {
       lastRouteKey.current = undefined;
       return;
     }
-    if (!isMapReady || routeKey === lastRouteKey.current) {
-      return;
-    }
+    if (!isMapReady || routeKey === lastRouteKey.current) return;
     lastRouteKey.current = routeKey;
     focusRoute();
   }, [fitRoute, focusRoute, isMapReady, routeKey]);
@@ -114,32 +122,25 @@ export function useMapCamera({
     lastRecenterSignal.current = recenterSignal;
 
     if (fitRoute && focusRoute()) return;
-    cameraRef.current?.easeTo({
-      center: focusCoordinate ?? [...baliMapCenter],
-      zoom: focusCoordinate ? 10.5 : baliMapZoom,
-      duration: motion.slow,
-      easing: 'ease',
-    });
+    if (recenterTarget) {
+      focusPlace(recenterTarget, mapRegionDeltas.neighborhood);
+      return;
+    }
+    if (focusCoordinate) {
+      focusPlace(focusCoordinate);
+      return;
+    }
+    resetOverview();
   }, [
-    cameraRef,
     fitRoute,
     focusCoordinate,
+    focusPlace,
     focusRoute,
     isMapReady,
     recenterSignal,
+    recenterTarget,
+    resetOverview,
   ]);
 
-  const focusCluster = useCallback(
-    (coordinate: MapCoordinate, zoom: number) => {
-      cameraRef.current?.easeTo({
-        center: coordinate,
-        zoom,
-        duration: motion.slow,
-        easing: 'ease',
-      });
-    },
-    [cameraRef],
-  );
-
-  return { focusCluster };
+  return { focusPlace, focusRegion, focusRoute, resetOverview };
 }

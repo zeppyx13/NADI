@@ -38,12 +38,17 @@
       "expo-image",
       "expo-font",
       "expo-status-bar",
-      "expo-localization",
-      "@maplibre/maplibre-react-native"
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a46cf848-7b0b-4726-9bc1-3e6c53155053"
+      }
     }
   }
 }
