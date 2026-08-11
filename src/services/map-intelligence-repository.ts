@@ -4,6 +4,10 @@ import { monitoringPoints } from '@/data/monitoring-points';
 import { parkingAreas } from '@/data/parking-areas';
 import { safetyZones } from '@/data/safety-zones';
 import { trafficSegments } from '@/data/traffic-segments';
+import {
+  readCachedRoadGeometry,
+  resolveTrafficRoadGeometry,
+} from '@/services/traffic-road-geometry-service';
 import type {
   DestinationCrowd,
   MapIncident,
@@ -22,7 +26,19 @@ import type {
  */
 
 export interface TrafficRepository {
+  /**
+   * Immediate read. Segments carry road-aligned geometry when it is already
+   * resolved this session, and their coarse anchors otherwise, so the map can
+   * draw straight away without waiting on the network.
+   */
   listSegments(): Promise<readonly TrafficSegment[]>;
+  /**
+   * Same segments with their corridor geometry resolved against real roads.
+   * Cached and deduplicated, so repeat calls cost nothing.
+   */
+  listSegmentsWithRoadGeometry(
+    signal?: AbortSignal,
+  ): Promise<readonly TrafficSegment[]>;
 }
 
 export interface MonitoringRepository {
@@ -52,7 +68,13 @@ export interface ParkingRepository {
 
 export class LocalTrafficRepository implements TrafficRepository {
   listSegments(): Promise<readonly TrafficSegment[]> {
-    return Promise.resolve(trafficSegments);
+    return Promise.resolve(trafficSegments.map(readCachedRoadGeometry));
+  }
+
+  listSegmentsWithRoadGeometry(
+    signal?: AbortSignal,
+  ): Promise<readonly TrafficSegment[]> {
+    return resolveTrafficRoadGeometry(trafficSegments, signal);
   }
 }
 

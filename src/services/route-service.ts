@@ -127,10 +127,13 @@ export class NadiRouteService implements RouteService {
     request: RouteRequest,
     signal?: AbortSignal,
   ): Promise<RouteResult> {
+    // Scoring reads the same road-aligned geometry the map draws, so a route is
+    // never judged against a coarse corridor that only looks like it crosses it.
+    // The resolution is cached, so this costs nothing after the first pass.
     const [safetyZones, incidents, trafficSegments] = await Promise.all([
       safetyRepository.listZones(),
       incidentRepository.listActive(),
-      trafficRepository.listSegments(),
+      trafficRepository.listSegmentsWithRoadGeometry(signal),
     ]);
     const inputs: RouteScoringInputs = {
       safetyZones,

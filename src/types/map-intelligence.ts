@@ -63,6 +63,9 @@ export type MonitoringPoint = {
 // Road traffic
 // ---------------------------------------------------------------------------
 
+/** Where the drawn corridor shape came from. The condition never does. */
+export type TrafficGeometrySource = 'google-routes' | 'local-anchor-fallback';
+
 export type TrafficSegment = {
   id: string;
   /** Road or corridor name shown to the user. */
@@ -70,10 +73,18 @@ export type TrafficSegment = {
   area: string;
   condition: TrafficLevel;
   /**
-   * Coarse corridor geometry for the road-condition overlay. This is not a
-   * travel route: the traveller's own line is `RouteCandidate.geometry`.
+   * Geometry of the road-condition overlay, road-aligned once the provider has
+   * resolved it and equal to `anchorPath` until then. This is not a travel
+   * route: the traveller's own line is `RouteCandidate.geometry`.
    */
   path: readonly MapLatLng[];
+  /**
+   * Coarse corridor anchors authored in `src/data/traffic-segments.ts`. They
+   * stay available as the resolution input, the fallback shape, and the record
+   * of which corridor the segment is meant to follow.
+   */
+  anchorPath?: readonly MapLatLng[];
+  geometrySource?: TrafficGeometrySource;
   averageSpeedKph?: number;
   updatedAt: string;
   dataSource: ConditionDataSource;

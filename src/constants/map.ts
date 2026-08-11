@@ -91,6 +91,21 @@ export const googleRoutesConfig = {
 } as const;
 
 /**
+ * Geometry-only request used to snap the coarse traffic corridors onto real
+ * roads. It deliberately asks for `TRAFFIC_UNAWARE`: the corridor shape must be
+ * stable across sessions, and live provider traffic must never become the
+ * source of a NADI traffic status.
+ */
+export const trafficGeometryConfig = {
+  routingPreference: 'TRAFFIC_UNAWARE',
+  fieldMask: 'routes.polyline.encodedPolyline',
+  /** Google Routes v2 accepts far more, but our corridors use a handful. */
+  maxIntermediates: 8,
+  /** Segments resolved in parallel, to stay polite to the quota. */
+  concurrency: 4,
+} as const;
+
+/**
  * Keeps the Google basemap readable underneath NADI markers by muting
  * commercial points of interest and transit clutter.
  */

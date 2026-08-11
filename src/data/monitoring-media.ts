@@ -1,8 +1,3 @@
-/**
- * Shared placeholder for monitoring points that do not have their own recording
- * yet. Required once so the file is bundled a single time no matter how many
- * points reference it.
- */
 const placeholderRecording: number = require('@/assets/videos/dummyATCS.mp4');
 
 const monitoringRecordings: Record<string, number> = {

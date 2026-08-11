@@ -5,8 +5,11 @@
 export type GoogleRoute = {
   /** Omitted by the API when the value would be zero. */
   distanceMeters?: number;
-  /** Protobuf duration string such as `"1234s"`. */
-  duration: string;
+  /**
+   * Protobuf duration string such as `"1234s"`. Absent on geometry-only
+   * requests whose field mask asks for the polyline alone.
+   */
+  duration?: string;
   staticDuration?: string;
   polyline: { encodedPolyline: string };
   routeLabels?: readonly string[];
@@ -22,13 +25,14 @@ function isStringArray(value: unknown): value is readonly string[] {
 
 export function isGoogleRoute(value: unknown): value is GoogleRoute {
   if (!isRecord(value)) return false;
-  // `duration` and the encoded polyline are the only fields a route cannot
-  // work without. Everything else stays optional so one missing extra never
-  // discards an otherwise usable route.
-  if (typeof value.duration !== 'string') return false;
+  // The encoded polyline is the only field every caller needs. Everything else
+  // depends on the field mask, so a missing extra never discards a usable route.
   if (!isRecord(value.polyline)) return false;
   if (typeof value.polyline.encodedPolyline !== 'string') return false;
   if (value.polyline.encodedPolyline.length === 0) return false;
+  if (value.duration !== undefined && typeof value.duration !== 'string') {
+    return false;
+  }
   if (
     value.distanceMeters !== undefined &&
     typeof value.distanceMeters !== 'number'

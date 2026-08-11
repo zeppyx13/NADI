@@ -14,7 +14,10 @@ import type {
   TrafficSegment,
 } from '@/types/map-intelligence';
 import type { RouteCandidate, RouteScore, ScoredRoute } from '@/types/route';
-import { distanceBetweenPathsMeters, distanceToPathMeters } from '@/utils/geo';
+import {
+  arePathsWithinMeters,
+  distanceToPathMeters,
+} from '@/utils/geo';
 
 export type RouteScoringInputs = {
   safetyZones: readonly SafetyZone[];
@@ -61,12 +64,16 @@ function measureRoute(
   let crossesClosedRoad = false;
 
   incidents.forEach((incident) => {
-    const pointDistance = distanceToPathMeters(incident, candidate.geometry);
-    const pathDistance = incident.affectedPath
-      ? distanceBetweenPathsMeters(incident.affectedPath, candidate.geometry)
-      : Number.POSITIVE_INFINITY;
-    const distance = Math.min(pointDistance, pathDistance);
-    if (distance > routeProximityMeters.incident) return;
+    const isNear =
+      distanceToPathMeters(incident, candidate.geometry) <=
+        routeProximityMeters.incident ||
+      (incident.affectedPath !== undefined &&
+        arePathsWithinMeters(
+          incident.affectedPath,
+          candidate.geometry,
+          routeProximityMeters.incident,
+        ));
+    if (!isNear) return;
 
     nearbyIncidentIds.push(incident.id);
     safetyPenalty += routeSafetyPenalties.incidentSeverity[incident.severity];
@@ -80,8 +87,17 @@ function measureRoute(
   const touchedLevels: TrafficLevel[] = [];
 
   trafficSegments.forEach((segment) => {
-    const distance = distanceBetweenPathsMeters(segment.path, candidate.geometry);
-    if (distance > routeProximityMeters.trafficSegment) return;
+    // `segment.path` is the resolved road-aligned corridor, the same geometry
+    // the traffic layer draws.
+    if (
+      !arePathsWithinMeters(
+        segment.path,
+        candidate.geometry,
+        routeProximityMeters.trafficSegment,
+      )
+    ) {
+      return;
+    }
     touchedLevels.push(segment.condition);
     trafficPenalty += routeTrafficPenalties[segment.condition];
   });
