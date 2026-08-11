@@ -262,3 +262,111 @@ export type ItineraryStorageState = {
   itineraries: Itinerary[];
   activeItineraryId: string | null;
 };
+
+// --- Ingestion types ---
+
+export type ItineraryInputSource =
+  | 'pdf'
+  | 'chat'
+  | 'generated-preferences';
+
+export type ItineraryItemType =
+  | 'destination'
+  | 'accommodation'
+  | 'food'
+  | 'transport'
+  | 'activity'
+  | 'custom'
+  | 'note';
+
+export type BudgetPreference =
+  | 'budget'
+  | 'comfortable'
+  | 'flexible';
+
+export type TransportPreference =
+  | 'motorcycle'
+  | 'car'
+  | 'driver'
+  | 'public-transport';
+
+export type TravelCompanion =
+  | 'solo'
+  | 'couple'
+  | 'friends'
+  | 'family';
+
+export type ItinerarySourceSnapshot = {
+  type: ItineraryInputSource;
+  fileName?: string;
+  originalText?: string;
+  conversationId?: string;
+  createdAt: string;
+};
+
+export type ItineraryItem = {
+  id: string;
+  type: ItineraryItemType;
+  title: string;
+  rawText?: string;
+  plannedTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+  destinationId?: string | null;
+  customLocation?: {
+    name: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  notes?: string;
+};
+
+export type ItineraryDay = {
+  id: string;
+  date?: string;
+  label?: string;
+  items: ItineraryItem[];
+};
+
+export type StructuredItineraryDraft = {
+  title?: string;
+  startDate?: string;
+  days: ItineraryDay[];
+  sourceSnapshot: ItinerarySourceSnapshot;
+};
+
+export type ImportedFile = {
+  uri: string;
+  name: string;
+  mimeType: string;
+  size?: number;
+};
+
+export type ImportedItineraryResult = {
+  success: boolean;
+  draft?: StructuredItineraryDraft;
+  errorKey?: string;
+};
+
+export type ItineraryChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+};
+
+export type ItineraryChatResponse = {
+  message: ItineraryChatMessage;
+  isDraftReady: boolean;
+};
+
+export type ExtendedTravelPreferences = TravelPreferences & {
+  date?: string;
+  startTime?: string;
+  startLocation?: ItineraryLocation;
+  budgetPreference?: BudgetPreference;
+  transportPreference?: TransportPreference;
+  travelCompanion?: TravelCompanion;
+  accessibilityNotes?: string[];
+  freeformNotes?: string;
+};

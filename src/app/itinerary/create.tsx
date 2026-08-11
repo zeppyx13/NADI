@@ -1,5 +1,10 @@
 import { useRouter } from 'expo-router';
-import { ListChecks, Sparkles } from 'lucide-react-native';
+import {
+  FileText,
+  ListChecks,
+  MessageCircle,
+  Sparkles,
+} from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -24,21 +29,41 @@ export default function ItineraryCreateScreen() {
         onBack={() => router.back()}
       />
 
+      {/* --- Already Have a Plan --- */}
       <AppCard variant="elevated" style={styles.option}>
         <View style={styles.iconBlue}>
           <ListChecks size={iconSizes.header} color={colors.brand[700]} />
         </View>
         <AppText variant="headingMd">{t('creation.manualTitle')}</AppText>
         <AppText variant="bodyMd" color={colors.neutral.textSecondary}>
-          {t('creation.manualDescription')}
+          {t('ingestion.alreadyHavePlanDescription')}
         </AppText>
-        <AppButton
-          fullWidth
-          label={t('creation.manualAction')}
-          onPress={() => router.push('/itinerary/manual')}
-        />
+
+        <View style={styles.entryRow}>
+          <AppButton
+            fullWidth
+            label={t('ingestion.uploadPdf')}
+            leadingIcon={
+              <FileText size={iconSizes.button} color={colors.neutral.white} />
+            }
+            onPress={() => router.push('/itinerary/import-pdf')}
+          />
+          <AppButton
+            fullWidth
+            variant="secondary"
+            label={t('ingestion.tellNadi')}
+            leadingIcon={
+              <MessageCircle
+                size={iconSizes.button}
+                color={colors.brand[700]}
+              />
+            }
+            onPress={() => router.push('/itinerary/chat-input')}
+          />
+        </View>
       </AppCard>
 
+      {/* --- Create Plan for Me --- */}
       <AppCard variant="elevated" style={styles.option}>
         <View style={styles.iconTeal}>
           <Sparkles size={iconSizes.header} color={colors.teal[700]} />
@@ -66,6 +91,9 @@ const styles = StyleSheet.create({
   },
   option: {
     gap: spacing[3],
+  },
+  entryRow: {
+    gap: spacing[2],
   },
   iconBlue: {
     width: 48,

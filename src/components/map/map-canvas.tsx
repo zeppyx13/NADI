@@ -53,6 +53,8 @@ import type {
   MapViewportPadding,
 } from '@/types/map';
 import type { TravelAlert } from '@/types/travel-alert';
+import { isMapLibreNativeAvailable } from '@/utils/maplibre-polyfill';
+import { MapCanvas as MapCanvasFallback } from './map-canvas.web';
 
 export type MapCanvasProps = {
   destinations: readonly Destination[];
@@ -83,7 +85,14 @@ function toCoordinate(location: {
   return [location.longitude, location.latitude];
 }
 
-export function MapCanvas({
+export function MapCanvas(props: MapCanvasProps) {
+  if (!isMapLibreNativeAvailable()) {
+    return <MapCanvasFallback {...props} />;
+  }
+  return <NativeMapCanvas {...props} />;
+}
+
+function NativeMapCanvas({
   destinations,
   alerts,
   selectedDestination,

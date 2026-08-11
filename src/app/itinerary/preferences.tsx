@@ -6,7 +6,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CustomMapPointPicker } from '@/components/itinerary/custom-map-point-picker';
@@ -35,9 +35,12 @@ import { destinations } from '@/data/destinations';
 import { defaultItineraryStartLocation } from '@/data/itinerary-scenarios';
 import type { Destination, DestinationCategory } from '@/types/destination';
 import type {
+  BudgetPreference,
   DurationType,
   ItineraryLocation,
   ItineraryPlace,
+  TransportPreference,
+  TravelCompanion,
   TravelStyle,
 } from '@/types/itinerary';
 import {
@@ -59,6 +62,14 @@ const interestOptions: readonly DestinationCategory[] = [
 ];
 const travelStyles: readonly TravelStyle[] = ['relaxed', 'balanced', 'intensive'];
 const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
+const budgetOptions: readonly BudgetPreference[] = ['budget', 'comfortable', 'flexible'];
+const transportOptions: readonly TransportPreference[] = [
+  'motorcycle',
+  'car',
+  'driver',
+  'public-transport',
+];
+const companionOptions: readonly TravelCompanion[] = ['solo', 'couple', 'friends', 'family'];
 
 function createInitialJourneyDate() {
   const date = new Date();
@@ -95,6 +106,10 @@ export default function TravelPreferencesScreen() {
   const [travelStyle, setTravelStyle] = useState<TravelStyle>('balanced');
   const [routePreference, setRoutePreference] = useState<RouteMode>('balanced');
   const [mustVisitDestinationIds, setMustVisitDestinationIds] = useState<string[]>([]);
+  const [budgetPreference, setBudgetPreference] = useState<BudgetPreference | undefined>(undefined);
+  const [transportPreference, setTransportPreference] = useState<TransportPreference | undefined>(undefined);
+  const [travelCompanion, setTravelCompanion] = useState<TravelCompanion | undefined>(undefined);
+  const [freeformNotes, setFreeformNotes] = useState('');
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [isCustomPointOpen, setIsCustomPointOpen] = useState(false);
@@ -314,6 +329,49 @@ export default function TravelPreferencesScreen() {
                   />
                 ))}
               </View>
+
+              <AppText variant="labelMd">{t('advancedPreferences.budget')}</AppText>
+              <View style={styles.chips}>
+                {budgetOptions.map((option) => (
+                  <SelectionChip
+                    key={option}
+                    label={t(`advancedPreferences.budget${option.charAt(0).toUpperCase()}${option.slice(1)}`)}
+                    selected={budgetPreference === option}
+                    onPress={() => setBudgetPreference(
+                      budgetPreference === option ? undefined : option,
+                    )}
+                  />
+                ))}
+              </View>
+
+              <AppText variant="labelMd">{t('advancedPreferences.transport')}</AppText>
+              <View style={styles.chips}>
+                {transportOptions.map((option) => (
+                  <SelectionChip
+                    key={option}
+                    label={t(`advancedPreferences.transport${option === 'motorcycle' ? 'Motorcycle' : option === 'car' ? 'Car' : option === 'driver' ? 'Driver' : 'Public'}`)}
+                    selected={transportPreference === option}
+                    onPress={() => setTransportPreference(
+                      transportPreference === option ? undefined : option,
+                    )}
+                  />
+                ))}
+              </View>
+
+              <AppText variant="labelMd">{t('advancedPreferences.companion')}</AppText>
+              <View style={styles.chips}>
+                {companionOptions.map((option) => (
+                  <SelectionChip
+                    key={option}
+                    label={t(`advancedPreferences.companion${option.charAt(0).toUpperCase()}${option.slice(1)}`)}
+                    selected={travelCompanion === option}
+                    onPress={() => setTravelCompanion(
+                      travelCompanion === option ? undefined : option,
+                    )}
+                  />
+                ))}
+              </View>
+
               <AppText variant="labelMd">{t('preferences.mustVisit')}</AppText>
               {selectedMustVisitNames.length > 0 && (
                 <AppText variant="bodySm" color={colors.neutral.textSecondary}>
@@ -325,6 +383,17 @@ export default function TravelPreferencesScreen() {
                 variant="secondary"
                 label={t('preferences.chooseMustVisit')}
                 onPress={() => setPickerTarget('must-visit')}
+              />
+
+              <AppText variant="labelMd">{t('advancedPreferences.chatPreference')}</AppText>
+              <TextInput
+                style={styles.freeformInput}
+                value={freeformNotes}
+                onChangeText={setFreeformNotes}
+                placeholder={t('advancedPreferences.chatPreferencePlaceholder')}
+                placeholderTextColor={colors.neutral.textMuted}
+                multiline
+                maxLength={500}
               />
             </AppCard>
           )}
@@ -448,5 +517,17 @@ const styles = StyleSheet.create({
   advancedContent: {
     gap: spacing[4],
     marginTop: spacing[2],
+  },
+  freeformInput: {
+    minHeight: 80,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.neutral.borderSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.neutral.surfaceSoft,
+    color: colors.neutral.textPrimary,
+    fontSize: 14,
+    textAlignVertical: 'top',
   },
 });

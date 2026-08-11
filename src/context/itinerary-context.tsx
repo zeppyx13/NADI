@@ -16,6 +16,7 @@ import type {
   CreateGeneratedItineraryInput,
   CreateManualItineraryInput,
   Itinerary,
+  StructuredItineraryDraft,
 } from '@/types/itinerary';
 
 type ItineraryContextState = {
@@ -40,6 +41,7 @@ type ItineraryContextValue = ItineraryContextState & {
   createGeneratedDraft: (
     input: CreateGeneratedItineraryInput,
   ) => Promise<Itinerary>;
+  createFromDraft: (draft: StructuredItineraryDraft) => Promise<Itinerary>;
   analyze: (id: string) => Promise<Itinerary>;
   approve: (id: string, recommendationId: string) => Promise<Itinerary>;
   approveOriginal: (id: string) => Promise<Itinerary>;
@@ -124,6 +126,11 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
       upsertFrom(itineraryService.createGeneratedDraft(input)),
     [upsertFrom],
   );
+  const createFromDraft = useCallback(
+    (draft: StructuredItineraryDraft) =>
+      upsertFrom(itineraryService.createFromDraft(draft)),
+    [upsertFrom],
+  );
   const analyze = useCallback(
     (id: string) => upsertFrom(itineraryService.analyze(id)),
     [upsertFrom],
@@ -168,6 +175,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
       getItinerary,
       createManualDraft,
       createGeneratedDraft,
+      createFromDraft,
       analyze,
       approve,
       approveOriginal,
@@ -181,6 +189,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
       getItinerary,
       createManualDraft,
       createGeneratedDraft,
+      createFromDraft,
       analyze,
       approve,
       approveOriginal,

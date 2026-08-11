@@ -31,6 +31,8 @@ import {
   spacing,
 } from '@/constants/theme';
 import type { ItineraryPlace } from '@/types/itinerary';
+import { isMapLibreNativeAvailable } from '@/utils/maplibre-polyfill';
+import { CustomMapPointPicker as CustomMapPointPickerFallback } from './custom-map-point-picker.web';
 
 type Coordinate = Pick<ItineraryPlace, 'latitude' | 'longitude'>;
 type MapPressHandler = NonNullable<MapProps['onPress']>;
@@ -42,7 +44,14 @@ export type CustomMapPointPickerProps = {
   onConfirm: (place: ItineraryPlace) => void;
 };
 
-export function CustomMapPointPicker({
+export function CustomMapPointPicker(props: CustomMapPointPickerProps) {
+  if (!isMapLibreNativeAvailable()) {
+    return <CustomMapPointPickerFallback {...props} />;
+  }
+  return <NativeCustomMapPointPicker {...props} />;
+}
+
+function NativeCustomMapPointPicker({
   visible,
   title,
   onClose,

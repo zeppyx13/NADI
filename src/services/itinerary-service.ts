@@ -11,8 +11,11 @@ import type {
   ItineraryChangeReason,
   ItineraryIssueType,
   ItineraryStorageState,
+  ItineraryPlan,
+  ItineraryStop,
+  StructuredItineraryDraft,
 } from '@/types/itinerary';
-import { clonePlan, createItineraryId } from '@/utils/itinerary';
+import { addMinutesToTime, calculatePlanTotals, clonePlan, createItineraryId } from '@/utils/itinerary';
 import {
   LocalItineraryAnalysisService,
   type ItineraryAnalysisService,
@@ -28,6 +31,7 @@ export interface ItineraryService {
   getById(id: string): Promise<Itinerary | null>;
   createManualDraft(input: CreateManualItineraryInput): Promise<Itinerary>;
   createGeneratedDraft(input: CreateGeneratedItineraryInput): Promise<Itinerary>;
+  createFromDraft(draft: StructuredItineraryDraft): Promise<Itinerary>;
   analyze(id: string): Promise<Itinerary>;
   approve(id: string, recommendationId: string): Promise<Itinerary>;
   approveOriginal(id: string): Promise<Itinerary>;
@@ -127,6 +131,101 @@ export class LocalItineraryService implements ItineraryService {
     const id = createItineraryId('itinerary');
     const originalPlan = await this.generationService.generateFromPreferences(input, id);
     const itinerary = createBaseItinerary(id, input, originalPlan);
+    await this.persistNew(itinerary);
+    return itinerary;
+  }
+
+  async createFromDraft(draft: StructuredItineraryDraft): Promise<Itinerary> {
+    const id = createItineraryId('itinerary');
+    const now = new Date().toISOString();
+
+    // Convert StructuredItineraryDraft items into ItineraryStops
+    const allItems = draft.days.flatMap((day) => day.items);
+    const stops: ItineraryStop[] = allItems.map((item, index): ItineraryStop => {
+      const destination = item.destinationId
+        ? destinations.find((d) => d.id === item.destinationId)
+        : null;
+
+      return {
+        id: `${id}-stop-${index + 1}`,
+        destinationId: destination?.id ?? item.destinationId ?? 'custom',
+        destinationNameSnapshot: item.title,
+        place: destination
+          ? {
+              id: destination.id,
+              name: destination.name,
+              latitude: destination.latitude,
+              longitude: destination.longitude,
+              source: 'nadi-destination' as const,
+            }
+          : {
+              id: `custom-${id}-${index}`,
+              name: item.customLocation?.name ?? item.title,
+              latitude: item.customLocation?.latitude ?? -8.6705,
+              longitude: item.customLocation?.longitude ?? 115.2126,
+              source: 'custom-map-point' as const,
+            },
+        plannedArrival: item.plannedTime ?? addMinutesToTime('08:00', index * 90),
+        plannedDeparture: addMinutesToTime(
+          item.plannedTime ?? addMinutesToTime('08:00', index * 90),
+          item.durationMinutes ?? 90,
+        ),
+        visitDurationMinutes: item.durationMinutes ?? 90,
+        status: 'upcoming',
+      };
+    });
+
+    const originalPlan: ItineraryPlan = {
+      stops,
+      ...calculatePlanTotals(stops),
+    };
+
+    const interests = stops.flatMap((stop) => {
+      const category = destinations.find(
+        (d) => d.id === stop.destinationId,
+      )?.category;
+      return category ? [category] : [];
+    });
+
+    const itinerary: Itinerary = {
+      id,
+      title: draft.title ?? 'Perjalanan Bali',
+      date: draft.startDate ?? new Date().toISOString().slice(0, 10),
+      status: 'approved',
+      version: 1,
+      startLocation: stops[0]?.place
+        ? { ...stops[0].place }
+        : {
+            name: 'Bali',
+            latitude: -8.6705,
+            longitude: 115.2126,
+          },
+      preferences: {
+        durationType: 'one-day',
+        interests: [...new Set(interests)],
+        travelStyle: 'balanced',
+        routePreference: 'balanced',
+        mustVisitDestinationIds: [],
+      },
+      originalPlan: clonePlan(originalPlan),
+      approvedPlan: clonePlan(originalPlan),
+      latestAnalysis: null,
+      changeHistory: [
+        {
+          id: createItineraryId('change'),
+          version: 1,
+          reason: 'initial-approval',
+          changedAt: now,
+          summaryKey: 'history.keepOriginal',
+        },
+      ],
+      createdAt: now,
+      updatedAt: now,
+      approvedAt: now,
+      startedAt: null,
+      completedAt: null,
+    };
+
     await this.persistNew(itinerary);
     return itinerary;
   }

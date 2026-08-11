@@ -1,3 +1,4 @@
+import '@/utils/maplibre-polyfill';
 import {
   Inter_400Regular,
   Inter_500Medium,
