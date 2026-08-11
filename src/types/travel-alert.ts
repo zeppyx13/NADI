@@ -16,6 +16,8 @@ export type TravelAlert = {
   titleKey: string;
   descriptionKey: string;
   locationName: string;
+  /** Set when the alert is about a destination rather than a road event. */
+  destinationId?: string;
   latitude: number;
   longitude: number;
   severity: AlertSeverity;

@@ -47,6 +47,7 @@ export const travelAlerts: readonly TravelAlert[] = [
     titleKey: 'alerts.items.crowd.title',
     descriptionKey: 'alerts.items.crowd.description',
     locationName: 'Pantai Kuta, Badung',
+    destinationId: 'pantai-kuta',
     latitude: -8.7185,
     longitude: 115.1686,
     severity: 'warning',

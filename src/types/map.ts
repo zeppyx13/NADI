@@ -32,6 +32,8 @@ export type MapInteractionMode =
   | 'explore'
   | 'place-selected'
   | 'destination-selected'
+  | 'incident-selected'
+  | 'monitoring-selected'
   | 'route-preview'
   | 'active-journey'
   | 'reoptimization-pending'

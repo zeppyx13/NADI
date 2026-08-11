@@ -3,6 +3,7 @@ import type { MapStyleElement } from 'react-native-maps';
 import type {
   MapLatLng,
   MapLayerGroup,
+  MapLayerId,
   MapLayerVisibility,
   MapRegion,
 } from '@/types/map';
@@ -87,10 +88,14 @@ export const cleanMapStyle: readonly MapStyleElement[] = [
   },
 ];
 
+/**
+ * Default view: destinations, road traffic and incidents on; the denser layers
+ * start off so the map stays readable until the user asks for them.
+ */
 export const initialLayerVisibility: MapLayerVisibility = {
   routes: true,
   itineraryStops: true,
-  traffic: false,
+  traffic: true,
   incidents: true,
   cctvAtcs: false,
   destinations: true,
@@ -101,10 +106,11 @@ export const initialLayerVisibility: MapLayerVisibility = {
 };
 
 /**
- * Layers that only exist as visibility state in this phase. They are shown in
- * the filter sheet as unavailable so the grouping stays stable for later work.
+ * Layers that exist as visibility state but have no data yet. They render in
+ * the filter sheet as unavailable. Every layer carries data from Phase 2 on,
+ * so the list is empty until a future layer is introduced ahead of its dataset.
  */
-export const pendingMapLayers = ['traffic', 'cctvAtcs', 'parking'] as const;
+export const pendingMapLayers: readonly MapLayerId[] = [];
 
 export const mapLayerGroups: readonly MapLayerGroup[] = [
   { id: 'journey', layers: ['routes', 'itineraryStops'] },

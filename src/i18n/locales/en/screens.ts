@@ -89,6 +89,126 @@ export const screensEn = {
       'Google Places search is not active yet. Only the NADI catalog is available.',
     clusterAccessibility_one: '{{count}} destination in this area',
     clusterAccessibility_other: '{{count}} destinations in this area',
+    monitoringClusterAccessibility_one: '{{count}} monitoring point in this area',
+    monitoringClusterAccessibility_other:
+      '{{count}} monitoring points in this area',
+    monitoringType: {
+      cctv: 'CCTV',
+      atcs: 'ATCS',
+    },
+    monitoringAreaCondition: 'Area condition',
+    monitoringUpdatedAt: 'Last updated',
+    monitoringConditionUnknown: 'No reading yet',
+    monitoringStatus: {
+      online: 'Active',
+      limited: 'Monitoring at this point is limited.',
+      offline: 'This monitoring point is currently inactive.',
+    },
+    monitoringPlayAction: 'Play monitoring',
+    monitoringRecordedNote: 'Monitoring is recorded footage, not a live stream.',
+    monitoringRecordingUnavailableTitle: 'Recording not available',
+    monitoringRecordingUnavailable:
+      'The recording for this monitoring point is not bundled with the app.',
+    monitoringRecordedAt: 'Recorded at {{time}}.',
+    monitoringPlaybackTitle: 'Monitoring',
+    monitoringPlaybackAccessibility: 'Traffic monitoring recording player',
+    trafficCondition: {
+      smooth: 'Clear',
+      moderate: 'Moderate',
+      heavy: 'Congested',
+      blocked: 'Closed',
+    },
+    safetyRisk: {
+      low: 'Low risk',
+      medium: 'Needs attention',
+      high: 'High risk',
+    },
+    safetyReasons: {
+      busyIntersection: 'Busy intersection with heavy vehicle flow.',
+      roadWorks: 'Road works along this stretch.',
+      narrowRoad: 'Narrow road carrying two-way traffic.',
+      pedestrianConflict: 'Frequent pedestrian crossings on the carriageway.',
+      steepBend: 'Steep climb with sharp bends.',
+      clearCorridor: 'Wide corridor with relatively clear flow.',
+    },
+    parkingStatus: {
+      available: 'Parking available',
+      limited: 'Limited parking',
+      full: 'Parking full',
+      unknown: 'Parking condition unknown',
+    },
+    incidentType: {
+      accident: 'Accident',
+      'road-closure': 'Road closure',
+      'road-disruption': 'Road disruption',
+      'heavy-congestion': 'Heavy congestion',
+      'stopped-vehicle': 'Stopped vehicle',
+      'local-event': 'Local event',
+    },
+    incidentStatus: {
+      suspected: 'Awaiting operator verification',
+      verified: 'Verified',
+      resolved: 'Cleared',
+    },
+    incidentImpact: {
+      none: 'Access normal',
+      slower: 'Slower access',
+      'partial-closure': 'Partial lane closure',
+      'full-closure': 'Road fully closed',
+    },
+    incidentWindow: 'Active {{start}} – {{end}}',
+    incidentStarted: 'Started {{start}}',
+    incidents: {
+      accidentTeukuUmar: {
+        title: 'Accident on Jl. Teuku Umar',
+        description:
+          'One eastbound lane is blocked. Officers are on site and traffic passes in turns.',
+      },
+      congestionDewaRuci: {
+        title: 'Long queues at Simpang Dewa Ruci',
+        description:
+          'Traffic from Kuta towards the bypass has been slow since late afternoon. Expect longer travel times.',
+      },
+      closureRayaUbud: {
+        title: 'Jl. Raya Ubud temporarily closed',
+        description:
+          'The closure covers the central Ubud stretch. Use the alternative route via Jl. Raya Andong.',
+      },
+      eventUbudCeremony: {
+        title: 'Traditional ceremony in central Ubud',
+        description:
+          'A procession passes along the main stretch. Vehicle access is restricted while it runs.',
+      },
+      eventSanurMelasti: {
+        title: 'Melasti ceremony at Sanur Beach',
+        description:
+          'The morning ceremony adds traffic towards the beach and parking fills faster than usual.',
+      },
+      stoppedVehicleBypass: {
+        title: 'Stopped vehicle on Bypass Ngurah Rai',
+        description:
+          'A vehicle is reported stopped on the shoulder. The report is not verified by an operator yet.',
+      },
+      roadWorksSunset: {
+        title: 'Road works on Jl. Sunset Road',
+        description:
+          'Resurfacing narrows the carriageway until early morning.',
+      },
+      narrowTanahLot: {
+        title: 'Narrow approach to Tanah Lot',
+        description:
+          'Tour vehicles park on the shoulder, slowing traffic in the late afternoon.',
+      },
+      accidentCanggu: {
+        title: 'Reported accident on Jl. Pantai Berawa',
+        description:
+          'A road user report came in and is awaiting operator verification.',
+      },
+      accidentJimbaran: {
+        title: 'Accident on Jl. Uluwatu',
+        description: 'The incident has been cleared and traffic is back to normal.',
+      },
+    },
     filterButton: 'Filters',
     layersAccessibility: 'Configure map layers',
     filterTitle: 'Map filters and layers',

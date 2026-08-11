@@ -7,8 +7,11 @@ import { CrowdLayer } from '@/components/map/layers/crowd-layer';
 import { CustomPlaceLayer } from '@/components/map/layers/custom-place-layer';
 import { DestinationLayer } from '@/components/map/layers/destination-layer';
 import { IncidentLayer } from '@/components/map/layers/incident-layer';
+import { MonitoringLayer } from '@/components/map/layers/monitoring-layer';
+import { ParkingLayer } from '@/components/map/layers/parking-layer';
 import { RouteLayer } from '@/components/map/layers/route-layer';
 import { SafetyLayer } from '@/components/map/layers/safety-layer';
+import { TrafficLayer } from '@/components/map/layers/traffic-layer';
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer';
 import {
   baliRegion,
@@ -16,7 +19,6 @@ import {
   simulatedStartCoordinate,
 } from '@/constants/map';
 import { colors, radii } from '@/constants/theme';
-import { destinationScenarioConditions } from '@/data/itinerary-scenarios';
 import { useMapCamera } from '@/hooks/use-map-camera';
 import type { Destination } from '@/types/destination';
 import type { ItineraryLocation, ItineraryPlace } from '@/types/itinerary';
@@ -30,13 +32,18 @@ import type {
   MapRouteVisualState,
   MapViewportPadding,
 } from '@/types/map';
-import type { TravelAlert } from '@/types/travel-alert';
+import type {
+  DestinationCrowd,
+  MapIncident,
+  MonitoringPoint,
+  ParkingArea,
+  SafetyZone,
+  TrafficSegment,
+} from '@/types/map-intelligence';
 
 export type MapCanvasProps = {
   destinations: readonly Destination[];
-  alerts: readonly TravelAlert[];
   selectedDestination?: Destination;
-  selectedAlert?: TravelAlert;
   /** Google Places result currently pinned on the map. */
   selectedPlace?: MapPlaceResult;
   activePlace?: ItineraryPlace;
@@ -44,20 +51,32 @@ export type MapCanvasProps = {
   startLocation?: ItineraryLocation;
   currentLocation?: MapLatLng;
   priorityDestinationIds?: readonly string[];
-  routeRelevantAlertIds?: readonly string[];
+
+  trafficSegments: readonly TrafficSegment[];
+  monitoringPoints: readonly MonitoringPoint[];
+  incidents: readonly MapIncident[];
+  destinationCrowd: readonly DestinationCrowd[];
+  safetyZones: readonly SafetyZone[];
+  parkingAreas: readonly ParkingArea[];
+
+  selectedIncident?: MapIncident;
+  selectedMonitoringPoint?: MonitoringPoint;
+  routeRelevantIncidentIds?: readonly string[];
+
   layerVisibility: MapLayerVisibility;
   showRoute: boolean;
   routeVisualState: MapRouteVisualState;
   recenterSignal: number;
   mapPadding: MapViewportPadding;
   onSelectDestination: (destination: Destination) => void;
-  onSelectAlert: (alert: TravelAlert) => void;
+  onSelectIncident: (incidentId: string) => void;
+  onSelectMonitoringPoint: (pointId: string) => void;
   /** Fired for taps on the basemap itself, not on a marker. */
   onMapPress?: () => void;
 };
 
 const emptyPlaces: readonly ItineraryPlace[] = [];
-const emptyAlertIds: readonly string[] = [];
+const emptyIncidentIds: readonly string[] = [];
 
 function toLatLng(location: MapLatLng): MapLatLng {
   return { latitude: location.latitude, longitude: location.longitude };
@@ -65,23 +84,30 @@ function toLatLng(location: MapLatLng): MapLatLng {
 
 export function MapCanvas({
   destinations,
-  alerts,
   selectedDestination,
-  selectedAlert,
   selectedPlace,
   activePlace,
   customPlaces = emptyPlaces,
   startLocation,
   currentLocation,
   priorityDestinationIds = [],
-  routeRelevantAlertIds = emptyAlertIds,
+  trafficSegments,
+  monitoringPoints,
+  incidents,
+  destinationCrowd,
+  safetyZones,
+  parkingAreas,
+  selectedIncident,
+  selectedMonitoringPoint,
+  routeRelevantIncidentIds = emptyIncidentIds,
   layerVisibility,
   showRoute,
   routeVisualState,
   recenterSignal,
   mapPadding,
   onSelectDestination,
-  onSelectAlert,
+  onSelectIncident,
+  onSelectMonitoringPoint,
   onMapPress,
 }: MapCanvasProps) {
   const { t } = useTranslation('screens');
@@ -128,26 +154,27 @@ export function MapCanvas({
     [routeCoordinates, routeVisualState, showRoute],
   );
 
-  const focusCoordinate = selectedAlert
-    ? toLatLng(selectedAlert)
-    : selectedPlace
-      ? toLatLng(selectedPlace)
-      : routeTarget
-        ? toLatLng(routeTarget)
-        : undefined;
-  const focusKey = selectedAlert
-    ? `alert:${selectedAlert.id}`
-    : selectedPlace
-      ? `place:${selectedPlace.id}`
-      : routeTarget
-        ? `destination:${routeTarget.id}`
-        : undefined;
+  const focusTarget = selectedIncident
+    ? { key: `incident:${selectedIncident.id}`, coordinate: toLatLng(selectedIncident) }
+    : selectedMonitoringPoint
+      ? {
+          key: `monitoring:${selectedMonitoringPoint.id}`,
+          coordinate: toLatLng(selectedMonitoringPoint),
+        }
+      : selectedPlace
+        ? { key: `place:${selectedPlace.id}`, coordinate: toLatLng(selectedPlace) }
+        : routeTarget
+          ? {
+              key: `destination:${routeTarget.id}`,
+              coordinate: toLatLng(routeTarget),
+            }
+          : undefined;
   const cameraRouteCoordinates = useMemo<readonly MapLatLng[]>(
     () =>
-      showRoute && selectedAlert
-        ? [...routeCoordinates, toLatLng(selectedAlert)]
+      showRoute && selectedIncident
+        ? [...routeCoordinates, toLatLng(selectedIncident)]
         : routeCoordinates,
-    [routeCoordinates, selectedAlert, showRoute],
+    [routeCoordinates, selectedIncident, showRoute],
   );
   const viewportRevision = `${mapPadding.top}:${mapPadding.right}:${mapPadding.bottom}:${mapPadding.left}`;
 
@@ -156,8 +183,8 @@ export function MapCanvas({
     isMapReady,
     recenterSignal,
     recenterTarget: currentLocation,
-    focusKey,
-    focusCoordinate,
+    focusKey: focusTarget?.key,
+    focusCoordinate: focusTarget?.coordinate,
     routeCoordinates: cameraRouteCoordinates,
     fitRoute: showRoute && routeCoordinates.length > 1,
     viewportRevision,
@@ -177,12 +204,9 @@ export function MapCanvas({
     [destinations, focusRegion, onSelectDestination],
   );
 
-  const handleAlertPress = useCallback(
-    (alertId: string) => {
-      const alert = alerts.find((item) => item.id === alertId);
-      if (alert) onSelectAlert(alert);
-    },
-    [alerts, onSelectAlert],
+  const handleMonitoringCluster = useCallback(
+    (clusterRegion: MapRegion) => focusRegion(clusterRegion),
+    [focusRegion],
   );
 
   return (
@@ -204,13 +228,18 @@ export function MapCanvas({
       onRegionChangeComplete={setRegion}
       onPress={onMapPress ? () => onMapPress() : undefined}
     >
-      <CrowdLayer destinations={destinations} visible={layerVisibility.crowd} />
-      <SafetyLayer
+      <CrowdLayer
+        crowd={destinationCrowd}
         destinations={destinations}
-        conditionsByDestinationId={destinationScenarioConditions}
-        visible={layerVisibility.safety}
+        visible={layerVisibility.crowd}
+      />
+      <SafetyLayer zones={safetyZones} visible={layerVisibility.safety} />
+      <TrafficLayer
+        segments={trafficSegments}
+        visible={layerVisibility.traffic}
       />
       <RouteLayer routes={routes} visible={layerVisibility.routes} />
+      <ParkingLayer areas={parkingAreas} visible={layerVisibility.parking} />
       <DestinationLayer
         destinations={destinations}
         region={region}
@@ -219,12 +248,20 @@ export function MapCanvas({
         visible={layerVisibility.destinations}
         onPress={handleDestinationPress}
       />
+      <MonitoringLayer
+        points={monitoringPoints}
+        region={region}
+        selectedPointId={selectedMonitoringPoint?.id}
+        visible={layerVisibility.cctvAtcs}
+        onPressPoint={onSelectMonitoringPoint}
+        onPressCluster={handleMonitoringCluster}
+      />
       <IncidentLayer
-        alerts={alerts}
-        selectedAlertId={selectedAlert?.id}
-        routeRelevantAlertIds={routeRelevantAlertIds}
+        incidents={incidents}
+        selectedIncidentId={selectedIncident?.id}
+        routeRelevantIncidentIds={routeRelevantIncidentIds}
         visible={layerVisibility.incidents}
-        onPress={handleAlertPress}
+        onPress={onSelectIncident}
       />
       <CustomPlaceLayer
         places={customPlaces}
@@ -244,7 +281,7 @@ export function MapCanvas({
           identifier={selectedPlace.id}
           coordinate={toLatLng(selectedPlace)}
           tracksViewChanges={false}
-          zIndex={7}
+          zIndex={10}
           accessibilityLabel={selectedPlace.name}
         >
           <View style={styles.placeMarker} />

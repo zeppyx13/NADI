@@ -88,6 +88,124 @@ export const screensId = {
     searchGoogleDisabled:
       'Pencarian Google Places belum aktif. Saat ini hanya katalog NADI yang tersedia.',
     clusterAccessibility: '{{count}} destinasi pada area ini',
+    monitoringClusterAccessibility: '{{count}} titik pantau pada area ini',
+    monitoringType: {
+      cctv: 'CCTV',
+      atcs: 'ATCS',
+    },
+    monitoringAreaCondition: 'Kondisi area',
+    monitoringUpdatedAt: 'Terakhir diperbarui',
+    monitoringConditionUnknown: 'Belum ada data',
+    monitoringStatus: {
+      online: 'Aktif',
+      limited: 'Pantauan terbatas pada titik ini.',
+      offline: 'Titik pantau sedang tidak aktif.',
+    },
+    monitoringPlayAction: 'Putar pantauan',
+    monitoringRecordedNote: 'Pantauan berupa rekaman, bukan siaran langsung.',
+    monitoringRecordingUnavailableTitle: 'Rekaman belum tersedia',
+    monitoringRecordingUnavailable:
+      'Rekaman untuk titik pantau ini belum tersedia di aplikasi.',
+    monitoringRecordedAt: 'Rekaman diambil pukul {{time}}.',
+    monitoringPlaybackTitle: 'Pantauan',
+    monitoringPlaybackAccessibility: 'Pemutar rekaman pantauan lalu lintas',
+    trafficCondition: {
+      smooth: 'Lancar',
+      moderate: 'Sedang',
+      heavy: 'Padat',
+      blocked: 'Tertutup',
+    },
+    safetyRisk: {
+      low: 'Risiko rendah',
+      medium: 'Perlu perhatian',
+      high: 'Risiko tinggi',
+    },
+    safetyReasons: {
+      busyIntersection: 'Simpang padat dengan arus kendaraan tinggi.',
+      roadWorks: 'Ada pekerjaan jalan di sepanjang ruas ini.',
+      narrowRoad: 'Jalan sempit dengan arus dua arah.',
+      pedestrianConflict: 'Banyak pejalan kaki menyeberang di badan jalan.',
+      steepBend: 'Tanjakan dengan tikungan tajam.',
+      clearCorridor: 'Jalur lebar dengan arus relatif lancar.',
+    },
+    parkingStatus: {
+      available: 'Parkir tersedia',
+      limited: 'Parkir terbatas',
+      full: 'Parkir penuh',
+      unknown: 'Kondisi parkir belum diketahui',
+    },
+    incidentType: {
+      accident: 'Kecelakaan',
+      'road-closure': 'Penutupan jalan',
+      'road-disruption': 'Gangguan jalan',
+      'heavy-congestion': 'Kepadatan tinggi',
+      'stopped-vehicle': 'Kendaraan berhenti',
+      'local-event': 'Kegiatan lokal',
+    },
+    incidentStatus: {
+      suspected: 'Menunggu verifikasi operator',
+      verified: 'Terverifikasi',
+      resolved: 'Sudah tertangani',
+    },
+    incidentImpact: {
+      none: 'Akses normal',
+      slower: 'Akses melambat',
+      'partial-closure': 'Sebagian jalur ditutup',
+      'full-closure': 'Jalur ditutup penuh',
+    },
+    incidentWindow: 'Berlangsung {{start}} – {{end}}',
+    incidentStarted: 'Mulai {{start}}',
+    incidents: {
+      accidentTeukuUmar: {
+        title: 'Kecelakaan di Jl. Teuku Umar',
+        description:
+          'Satu lajur arah timur tertutup. Petugas berada di lokasi dan arus dialihkan bergantian.',
+      },
+      congestionDewaRuci: {
+        title: 'Antrean panjang di Simpang Dewa Ruci',
+        description:
+          'Arus dari arah Kuta menuju bypass melambat sejak sore. Perkirakan waktu tempuh lebih lama.',
+      },
+      closureRayaUbud: {
+        title: 'Jl. Raya Ubud ditutup sementara',
+        description:
+          'Penutupan berlaku pada ruas pusat Ubud. Gunakan jalur alternatif melalui Jl. Raya Andong.',
+      },
+      eventUbudCeremony: {
+        title: 'Upacara adat di pusat Ubud',
+        description:
+          'Iring-iringan melewati ruas utama. Akses kendaraan dibatasi selama kegiatan berlangsung.',
+      },
+      eventSanurMelasti: {
+        title: 'Melasti di Pantai Sanur',
+        description:
+          'Kegiatan pagi hari menambah arus menuju pantai. Area parkir terisi lebih cepat dari biasanya.',
+      },
+      stoppedVehicleBypass: {
+        title: 'Kendaraan berhenti di Bypass Ngurah Rai',
+        description:
+          'Laporan kendaraan berhenti di bahu jalan. Kondisi belum diverifikasi operator.',
+      },
+      roadWorksSunset: {
+        title: 'Pekerjaan jalan di Jl. Sunset Road',
+        description:
+          'Perbaikan permukaan jalan mempersempit lajur hingga dini hari.',
+      },
+      narrowTanahLot: {
+        title: 'Jalur menuju Tanah Lot menyempit',
+        description:
+          'Bahu jalan dipakai parkir kendaraan wisata sehingga arus melambat menjelang sore.',
+      },
+      accidentCanggu: {
+        title: 'Laporan kecelakaan di Jl. Pantai Berawa',
+        description:
+          'Laporan masuk dari pengguna jalan dan sedang menunggu verifikasi operator.',
+      },
+      accidentJimbaran: {
+        title: 'Kecelakaan di Jl. Uluwatu',
+        description: 'Kejadian sudah tertangani dan arus kembali normal.',
+      },
+    },
     filterButton: 'Filter',
     layersAccessibility: 'Atur lapisan peta',
     filterTitle: 'Filter dan lapisan peta',

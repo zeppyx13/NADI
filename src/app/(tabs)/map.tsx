@@ -12,10 +12,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
+import { IncidentDetailPanel } from '@/components/map/incident-detail-panel';
 import { MapCanvas } from '@/components/map/map-canvas';
 import { MapFilterSheet } from '@/components/map/map-filter-sheet';
 import { MapInfoPanel } from '@/components/map/map-info-panel';
 import { MapSearchBar } from '@/components/map/map-search-bar';
+import { MonitoringDetailPanel } from '@/components/map/monitoring-detail-panel';
+import { MonitoringPlaybackModal } from '@/components/map/monitoring-playback-modal';
+import { ReoptimizationBanner } from '@/components/map/reoptimization-banner';
 import { AppText, IconButton } from '@/components/ui';
 import { initialLayerVisibility } from '@/constants/map';
 import {
@@ -35,6 +39,7 @@ import {
   getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
 import { useCurrentLocation } from '@/hooks/use-current-location';
+import { useMapIntelligence } from '@/hooks/use-map-intelligence';
 import { usePlaceSearch } from '@/hooks/use-place-search';
 import type { Destination } from '@/types/destination';
 import type {
@@ -44,16 +49,11 @@ import type {
   MapPlaceResult,
   MapRouteVisualState,
 } from '@/types/map';
-import type { TravelAlert } from '@/types/travel-alert';
 import {
   isEventNearNextItineraryLeg,
   isEventRelevantToItinerary,
   isRouteDisruptionAlert,
 } from '@/utils/itinerary';
-
-const incidentAlerts = travelAlerts.filter((alert) =>
-  ['incident', 'traffic', 'road-closure'].includes(alert.type),
-);
 
 export default function MapScreen() {
   const { t } = useTranslation(['screens', 'itinerary']);
@@ -68,9 +68,13 @@ export default function MapScreen() {
   }>();
   const search = usePlaceSearch();
   const currentLocation = useCurrentLocation();
+  const intelligence = useMapIntelligence();
   const [mode, setMode] = useState<MapInteractionMode>('explore');
   const [selectedDestination, setSelectedDestination] = useState<Destination>();
   const [selectedPlace, setSelectedPlace] = useState<MapPlaceResult>();
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string>();
+  const [selectedMonitoringId, setSelectedMonitoringId] = useState<string>();
+  const [isPlaybackOpen, setIsPlaybackOpen] = useState(false);
   const [routeModeOverride, setRouteModeOverride] = useState<RouteMode | null>(
     null,
   );
@@ -120,13 +124,31 @@ export default function MapScreen() {
     () => itineraryPlan?.stops.map((stop) => stop.place) ?? [],
     [itineraryPlan],
   );
+  const selectedAlert = travelAlerts.find((alert) => alert.id === params.alertId);
+  // The alert feed deep-links by alert id; the map speaks in incidents.
+  const linkedIncident = params.alertId
+    ? intelligence.incidents.find(
+        (incident) => incident.alertId === params.alertId,
+      )
+    : undefined;
+  /** Crowd alerts have no road incident, so they land on their destination. */
+  const alertDestination =
+    !linkedIncident && selectedAlert?.destinationId
+      ? destinations.find((item) => item.id === selectedAlert.destinationId)
+      : undefined;
+
   const parameterDestination = destinations.find(
     (item) => item.id === params.destinationId,
   );
   const displayedDestination = params.alertId
-    ? itineraryDestination
+    ? alertDestination ?? itineraryDestination
     : parameterDestination ?? selectedDestination ?? itineraryDestination;
-  const selectedAlert = travelAlerts.find((alert) => alert.id === params.alertId);
+  const selectedIncident =
+    linkedIncident ??
+    intelligence.incidents.find((incident) => incident.id === selectedIncidentId);
+  const selectedMonitoringPoint = intelligence.monitoringPoints.find(
+    (point) => point.id === selectedMonitoringId,
+  );
 
   const routeMode =
     routeModeOverride ?? mapItinerary?.preferences.routePreference ?? 'balanced';
@@ -157,14 +179,22 @@ export default function MapScreen() {
     itinerarySessionKeyRef.current = itinerarySessionKey;
     setSelectedDestination(undefined);
     setSelectedPlace(undefined);
+    setSelectedIncidentId(undefined);
+    setSelectedMonitoringId(undefined);
     setMode('explore');
     setRouteModeOverride(null);
   }, [itinerarySessionKey]);
 
   let baseMode: MapInteractionMode = 'explore';
-  if (selectedPlace) {
+  if (selectedMonitoringPoint) {
+    baseMode = 'monitoring-selected';
+  } else if (selectedIncident) {
+    baseMode = 'incident-selected';
+  } else if (selectedPlace) {
     baseMode = 'place-selected';
-  } else if (selectedDestination && !params.alertId) {
+  } else if (alertDestination) {
+    baseMode = 'destination-selected';
+  } else if (selectedDestination) {
     baseMode = mode;
   } else if (
     mapItinerary &&
@@ -239,32 +269,29 @@ export default function MapScreen() {
         : [],
     [displayedDestination, itineraryDestination],
   );
-  const canvasAlerts = useMemo(() => {
-    if (
-      !selectedAlert ||
-      incidentAlerts.some((alert) => alert.id === selectedAlert.id)
-    ) {
-      return incidentAlerts;
-    }
-    return [...incidentAlerts, selectedAlert];
-  }, [selectedAlert]);
-  const routeRelevantAlertIds = useMemo(
-    () =>
-      mapItinerary
-        ? canvasAlerts
-            .filter((alert) => isEventRelevantToItinerary(alert, mapItinerary))
-            .map((alert) => alert.id)
-        : [],
-    [canvasAlerts, mapItinerary],
-  );
+  /** Incidents the itinerary analysis already flagged, matched through the alert feed. */
+  const routeRelevantIncidentIds = useMemo(() => {
+    if (!mapItinerary) return [];
+    const relevantAlertIds = new Set(
+      travelAlerts
+        .filter((alert) => isEventRelevantToItinerary(alert, mapItinerary))
+        .map((alert) => alert.id),
+    );
+    return intelligence.incidents
+      .filter(
+        (incident) => incident.alertId && relevantAlertIds.has(incident.alertId),
+      )
+      .map((incident) => incident.id);
+  }, [intelligence.incidents, mapItinerary]);
   const effectiveLayerVisibility = useMemo<MapLayerVisibility>(
     () => ({
       ...layerVisibility,
-      // A deep link to an alert always shows that alert, whatever the toggle says.
-      incidents: Boolean(selectedAlert) || layerVisibility.incidents,
+      // A deep link to an alert always shows that incident, whatever the toggle says.
+      incidents: Boolean(linkedIncident) || layerVisibility.incidents,
+      cctvAtcs: Boolean(selectedMonitoringId) || layerVisibility.cctvAtcs,
       routes: layerVisibility.routes && showRoute,
     }),
-    [layerVisibility, selectedAlert, showRoute],
+    [layerVisibility, linkedIncident, selectedMonitoringId, showRoute],
   );
   const mapPadding = useMemo(
     () => ({
@@ -281,9 +308,15 @@ export default function MapScreen() {
     Keyboard.dismiss();
   };
 
+  const clearSelections = () => {
+    setSelectedPlace(undefined);
+    setSelectedIncidentId(undefined);
+    setSelectedMonitoringId(undefined);
+  };
+
   const selectDestination = (destination: Destination) => {
     router.setParams({ destinationId: undefined, alertId: undefined });
-    setSelectedPlace(undefined);
+    clearSelections();
     setSelectedDestination(destination);
     setMode('destination-selected');
   };
@@ -302,15 +335,36 @@ export default function MapScreen() {
 
     router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
+    setSelectedIncidentId(undefined);
+    setSelectedMonitoringId(undefined);
     setMode('place-selected');
     setSelectedPlace(result);
   };
 
-  const selectAlert = (alert: TravelAlert) => {
+  const selectIncident = (incidentId: string) => {
+    closeSearch();
+    router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
     setSelectedPlace(undefined);
+    setSelectedMonitoringId(undefined);
+    setSelectedIncidentId(incidentId);
+    setMode('incident-selected');
+  };
+
+  const selectMonitoringPoint = (pointId: string) => {
+    closeSearch();
+    router.setParams({ destinationId: undefined, alertId: undefined });
+    setSelectedDestination(undefined);
+    setSelectedPlace(undefined);
+    setSelectedIncidentId(undefined);
+    setSelectedMonitoringId(pointId);
+    setMode('monitoring-selected');
+  };
+
+  const closeDetailSelection = () => {
+    router.setParams({ alertId: undefined });
+    clearSelections();
     setMode('explore');
-    router.setParams({ destinationId: undefined, alertId: alert.id });
   };
 
   const toggleLayer = (layer: MapLayerId) => {
@@ -363,23 +417,30 @@ export default function MapScreen() {
     <View style={styles.screen}>
       <MapCanvas
         destinations={canvasDestinations}
-        alerts={canvasAlerts}
         selectedDestination={displayedDestination}
-        selectedAlert={selectedAlert}
         selectedPlace={selectedPlace}
         activePlace={activeItineraryPlace}
         customPlaces={customPlaces}
         startLocation={routeOriginLocation}
         currentLocation={currentLocation.coordinate ?? undefined}
         priorityDestinationIds={priorityDestinationIds}
-        routeRelevantAlertIds={routeRelevantAlertIds}
+        trafficSegments={intelligence.trafficSegments}
+        monitoringPoints={intelligence.monitoringPoints}
+        incidents={intelligence.incidents}
+        destinationCrowd={intelligence.destinationCrowd}
+        safetyZones={intelligence.safetyZones}
+        parkingAreas={intelligence.parkingAreas}
+        selectedIncident={selectedIncident}
+        selectedMonitoringPoint={selectedMonitoringPoint}
+        routeRelevantIncidentIds={routeRelevantIncidentIds}
         layerVisibility={effectiveLayerVisibility}
         showRoute={showRoute}
         routeVisualState={routeVisualState}
         recenterSignal={recenterSignal}
         mapPadding={mapPadding}
         onSelectDestination={selectDestination}
-        onSelectAlert={selectAlert}
+        onSelectIncident={selectIncident}
+        onSelectMonitoringPoint={selectMonitoringPoint}
         onMapPress={closeSearch}
       />
 
@@ -458,62 +519,71 @@ export default function MapScreen() {
         style={styles.bottomPanel}
         onLayout={handlePanelLayout}
       >
-        <MapInfoPanel
-          mode={displayedMode}
-          selectedDestination={displayedDestination}
-          selectedPlace={selectedPlace}
-          onClearPlace={() => {
-            setSelectedPlace(undefined);
-            setMode('explore');
-          }}
-          activePlace={activeItineraryPlace}
-          routeMode={routeMode}
-          routeOriginName={routeOriginLocation.name}
-          selectedTravelMinutes={selectedTravelMinutes}
-          activeArrivalTime={nextItineraryStop?.plannedArrival}
-          activeTravelMinutes={
-            nextItineraryStop?.routeToStop?.estimatedTravelMinutes ??
-            itineraryDestination?.estimatedTravelMinutes
-          }
-          activeRemainingCount={remainingStops.length}
-          onChooseDestination={() => {
-            if (!displayedDestination) return;
-            router.setParams({ destinationId: undefined });
-            setSelectedDestination(displayedDestination);
-            setMode('route-preview');
-          }}
-          onViewDetail={showUnavailableDetail}
-          onRouteModeChange={setRouteModeOverride}
-          onStartJourney={startJourney}
-          continueJourneyAction={
-            displayedMode === 'active-journey'
-              ? {
-                  label: t('map.panel.continueJourney'),
-                  onPress: () => setRecenterSignal((current) => current + 1),
-                }
-              : undefined
-          }
-          itineraryAction={
-            mapItinerary
-              ? {
-                  label: t('map.itineraryAction', { ns: 'itinerary' }),
-                  onPress: openItinerary,
-                }
-              : undefined
-          }
-          pendingRecommendationAction={
-            pendingRecommendation && mapItinerary
-              ? {
-                  label: t('map.reviewRecommendation', { ns: 'itinerary' }),
-                  onPress: () =>
-                    router.push({
-                      pathname: '/itinerary/[id]/reoptimize',
-                      params: { id: mapItinerary.id },
-                    }),
-                }
-              : undefined
-          }
-        />
+        {pendingRecommendation && mapItinerary && (
+          <ReoptimizationBanner
+            actionLabel={t('map.reviewRecommendation', { ns: 'itinerary' })}
+            onPress={() =>
+              router.push({
+                pathname: '/itinerary/[id]/reoptimize',
+                params: { id: mapItinerary.id },
+              })
+            }
+          />
+        )}
+        {selectedMonitoringPoint ? (
+          <MonitoringDetailPanel
+            point={selectedMonitoringPoint}
+            onPlayRecording={() => setIsPlaybackOpen(true)}
+            onClose={closeDetailSelection}
+          />
+        ) : selectedIncident ? (
+          <IncidentDetailPanel
+            incident={selectedIncident}
+            onClose={closeDetailSelection}
+          />
+        ) : (
+          <MapInfoPanel
+            mode={displayedMode}
+            selectedDestination={displayedDestination}
+            selectedPlace={selectedPlace}
+            onClearPlace={closeDetailSelection}
+            activePlace={activeItineraryPlace}
+            routeMode={routeMode}
+            routeOriginName={routeOriginLocation.name}
+            selectedTravelMinutes={selectedTravelMinutes}
+            activeArrivalTime={nextItineraryStop?.plannedArrival}
+            activeTravelMinutes={
+              nextItineraryStop?.routeToStop?.estimatedTravelMinutes ??
+              itineraryDestination?.estimatedTravelMinutes
+            }
+            activeRemainingCount={remainingStops.length}
+            onChooseDestination={() => {
+              if (!displayedDestination) return;
+              router.setParams({ destinationId: undefined });
+              setSelectedDestination(displayedDestination);
+              setMode('route-preview');
+            }}
+            onViewDetail={showUnavailableDetail}
+            onRouteModeChange={setRouteModeOverride}
+            onStartJourney={startJourney}
+            continueJourneyAction={
+              displayedMode === 'active-journey'
+                ? {
+                    label: t('map.panel.continueJourney'),
+                    onPress: () => setRecenterSignal((current) => current + 1),
+                  }
+                : undefined
+            }
+            itineraryAction={
+              mapItinerary
+                ? {
+                    label: t('map.itineraryAction', { ns: 'itinerary' }),
+                    onPress: openItinerary,
+                  }
+                : undefined
+            }
+          />
+        )}
       </View>
 
       <MapFilterSheet
@@ -521,6 +591,11 @@ export default function MapScreen() {
         layerVisibility={layerVisibility}
         onToggleLayer={toggleLayer}
         onClose={() => setIsFilterOpen(false)}
+      />
+      <MonitoringPlaybackModal
+        visible={isPlaybackOpen}
+        point={selectedMonitoringPoint}
+        onClose={() => setIsPlaybackOpen(false)}
       />
     </View>
   );

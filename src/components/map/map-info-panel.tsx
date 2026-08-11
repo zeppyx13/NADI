@@ -1,10 +1,4 @@
-import {
-  ChevronRight,
-  Clock3,
-  Navigation,
-  RefreshCw,
-  Route,
-} from 'lucide-react-native';
+import { Clock3, Navigation, Route } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +39,6 @@ export type MapInfoPanelProps = {
   onStartJourney: () => void;
   continueJourneyAction?: MapPanelAction;
   itineraryAction?: MapPanelAction;
-  pendingRecommendationAction?: MapPanelAction;
 };
 
 const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
@@ -68,7 +61,6 @@ export function MapInfoPanel({
   onStartJourney,
   continueJourneyAction,
   itineraryAction,
-  pendingRecommendationAction,
 }: MapInfoPanelProps) {
   const { t } = useTranslation('screens');
 
@@ -306,41 +298,9 @@ export function MapInfoPanel({
     panel = null;
   }
 
-  if (!panel && !pendingRecommendationAction) return null;
+  if (!panel) return null;
 
-  return (
-    <View style={styles.container}>
-      {pendingRecommendationAction && (
-        <View style={styles.reoptimizationBanner}>
-          <RefreshCw size={iconSizes.button} color={colors.semantic.warning.text} />
-          <AppText
-            variant="labelMd"
-            color={colors.semantic.warning.text}
-            style={styles.bannerCopy}
-          >
-            {t('map.pendingRecommendation')}
-          </AppText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={pendingRecommendationAction.onPress}
-            style={({ pressed }) => [
-              styles.bannerAction,
-              pressed && styles.routeModePressed,
-            ]}
-          >
-            <AppText variant="labelMd" color={colors.semantic.warning.text}>
-              {pendingRecommendationAction.label}
-            </AppText>
-            <ChevronRight
-              size={iconSizes.inline}
-              color={colors.semantic.warning.text}
-            />
-          </Pressable>
-        </View>
-      )}
-      {panel}
-    </View>
-  );
+  return <View style={styles.container}>{panel}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -415,28 +375,5 @@ const styles = StyleSheet.create({
   },
   centered: {
     textAlign: 'center',
-  },
-  reoptimizationBanner: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    paddingLeft: spacing[3],
-    paddingRight: spacing[2],
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.semantic.warning.main,
-    backgroundColor: colors.semantic.warning.bg,
-  },
-  bannerCopy: {
-    flex: 1,
-  },
-  bannerAction: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[1],
-    paddingHorizontal: spacing[2],
-    borderRadius: radii.sm,
   },
 });
