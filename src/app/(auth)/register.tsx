@@ -209,14 +209,20 @@ export default function RegisterScreen() {
               disabled={isSubmitting}
               onPress={() => updateValue('acceptedTerms', !values.acceptedTerms)}
               style={({ pressed }) => [
-                styles.checkbox,
-                values.acceptedTerms && styles.checkboxSelected,
+                styles.checkboxTouchTarget,
                 pressed && styles.controlPressed,
               ]}
             >
-              {values.acceptedTerms && (
-                <Check size={iconSizes.badge} color={colors.neutral.white} />
-              )}
+              <View
+                style={[
+                  styles.checkbox,
+                  values.acceptedTerms && styles.checkboxSelected,
+                ]}
+              >
+                {values.acceptedTerms && (
+                  <Check size={14} color={colors.neutral.white} />
+                )}
+              </View>
             </Pressable>
             <View style={styles.termsCopy}>
               <AppText variant="bodySm" color={colors.neutral.textSecondary}>
@@ -285,13 +291,19 @@ const styles = StyleSheet.create({
   termsRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing[3],
+    gap: spacing[2],
+  },
+  checkboxTouchTarget: {
+    minWidth: layout.minTouchTarget,
+    minHeight: layout.minTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   checkbox: {
-    width: layout.minTouchTarget,
-    height: layout.minTouchTarget,
-    borderRadius: radii.sm,
-    borderWidth: 1,
+    width: 22,
+    height: 22,
+    borderRadius: radii.xs,
+    borderWidth: 1.5,
     borderColor: colors.neutral.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',

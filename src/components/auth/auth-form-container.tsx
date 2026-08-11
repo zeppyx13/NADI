@@ -19,7 +19,8 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView
         style={styles.scrollView}
@@ -27,6 +28,7 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bounces={false}
       >
         <View style={styles.content}>
           <View style={styles.titleGroup}>
@@ -53,6 +55,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: spacing[8],
   },
   content: {
     width: '100%',

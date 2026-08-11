@@ -9,4 +9,5 @@ export const validationId = {
   confirmPasswordRequired: 'Konfirmasi kata sandi wajib diisi.',
   passwordMismatch: 'Konfirmasi kata sandi tidak sama.',
   termsRequired: 'Anda perlu menyetujui ketentuan untuk melanjutkan.',
+  acceptedTerms: 'Anda perlu menyetujui Ketentuan Layanan dan Kebijakan Privasi.',
 } as const;

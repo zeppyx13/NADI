@@ -34,8 +34,8 @@ import { useItineraries } from '@/context/itinerary-context';
 import { destinations } from '@/data/destinations';
 import { defaultItineraryStartLocation } from '@/data/itinerary-scenarios';
 import type { Destination, DestinationCategory } from '@/types/destination';
-import type {
-  BudgetPreference,
+import { budgetConfig, formatCompactIdr } from '@/utils/currency';
+import {
   DurationType,
   ItineraryLocation,
   ItineraryPlace,
@@ -62,7 +62,6 @@ const interestOptions: readonly DestinationCategory[] = [
 ];
 const travelStyles: readonly TravelStyle[] = ['relaxed', 'balanced', 'intensive'];
 const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
-const budgetOptions: readonly BudgetPreference[] = ['budget', 'comfortable', 'flexible'];
 const transportOptions: readonly TransportPreference[] = [
   'motorcycle',
   'car',
@@ -106,7 +105,9 @@ export default function TravelPreferencesScreen() {
   const [travelStyle, setTravelStyle] = useState<TravelStyle>('balanced');
   const [routePreference, setRoutePreference] = useState<RouteMode>('balanced');
   const [mustVisitDestinationIds, setMustVisitDestinationIds] = useState<string[]>([]);
-  const [budgetPreference, setBudgetPreference] = useState<BudgetPreference | undefined>(undefined);
+  const [noBudgetLimit, setNoBudgetLimit] = useState(true);
+  const [budgetMin, setBudgetMin] = useState<number>(budgetConfig.defaultMin);
+  const [budgetMax, setBudgetMax] = useState<number>(budgetConfig.defaultMax);
   const [transportPreference, setTransportPreference] = useState<TransportPreference | undefined>(undefined);
   const [travelCompanion, setTravelCompanion] = useState<TravelCompanion | undefined>(undefined);
   const [freeformNotes, setFreeformNotes] = useState('');
@@ -204,6 +205,20 @@ export default function TravelPreferencesScreen() {
     return destination ? [destination.name] : [];
   });
   const maximumMustVisit = getMaximumItineraryStops(durationType, travelStyle);
+
+  const advancedSummaryParts: string[] = [];
+  if (!noBudgetLimit) {
+    advancedSummaryParts.push(`${formatCompactIdr(budgetMin)}–${formatCompactIdr(budgetMax)}`);
+  }
+  if (travelCompanion) {
+    advancedSummaryParts.push(t(`advancedPreferences.companion${travelCompanion.charAt(0).toUpperCase()}${travelCompanion.slice(1)}`));
+  }
+  if (transportPreference) {
+    advancedSummaryParts.push(t(`advancedPreferences.transport${transportPreference === 'motorcycle' ? 'Motorcycle' : transportPreference === 'car' ? 'Car' : transportPreference === 'driver' ? 'Driver' : 'Public'}`));
+  }
+  const advancedSummary = advancedSummaryParts.length > 0
+    ? advancedSummaryParts.join(' · ')
+    : null;
 
   return (
     <>
@@ -316,6 +331,11 @@ export default function TravelPreferencesScreen() {
               <ChevronDown size={iconSizes.button} color={colors.brand[600]} />
             )}
           </Pressable>
+          {!isAdvancedOpen && advancedSummary && (
+            <AppText variant="bodySm" color={colors.neutral.textSecondary} style={styles.advancedSummary}>
+              {advancedSummary}
+            </AppText>
+          )}
           {isAdvancedOpen && (
             <AppCard variant="outlined" style={styles.advancedContent}>
               <AppText variant="labelMd">{t('fields.routePreference')}</AppText>
@@ -331,18 +351,88 @@ export default function TravelPreferencesScreen() {
               </View>
 
               <AppText variant="labelMd">{t('advancedPreferences.budget')}</AppText>
-              <View style={styles.chips}>
-                {budgetOptions.map((option) => (
-                  <SelectionChip
-                    key={option}
-                    label={t(`advancedPreferences.budget${option.charAt(0).toUpperCase()}${option.slice(1)}`)}
-                    selected={budgetPreference === option}
-                    onPress={() => setBudgetPreference(
-                      budgetPreference === option ? undefined : option,
-                    )}
-                  />
-                ))}
-              </View>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: !noBudgetLimit }}
+                onPress={() => setNoBudgetLimit((v) => !v)}
+                style={styles.noBudgetRow}
+              >
+                <View style={[
+                  styles.toggleTrack,
+                  !noBudgetLimit && styles.toggleTrackActive,
+                ]}>
+                  <View style={[
+                    styles.toggleThumb,
+                    !noBudgetLimit && styles.toggleThumbActive,
+                  ]} />
+                </View>
+                <AppText variant="bodySm" color={colors.neutral.textSecondary}>
+                  {t('advancedPreferences.noBudgetLimit')}
+                </AppText>
+              </Pressable>
+              {!noBudgetLimit && (
+                <View style={styles.budgetSection}>
+                  <View style={styles.budgetLabels}>
+                    <AppText variant="caption" color={colors.neutral.textMuted}>
+                      {formatCompactIdr(budgetMin)}
+                    </AppText>
+                    <AppText variant="caption" color={colors.neutral.textMuted}>
+                      {formatCompactIdr(budgetMax)}
+                    </AppText>
+                  </View>
+                  <View style={styles.budgetStepperRow}>
+                    <View style={styles.budgetStepper}>
+                      <AppText variant="caption" color={colors.neutral.textSecondary}>
+                        Min
+                      </AppText>
+                      <View style={styles.stepperControl}>
+                        <Pressable
+                          accessibilityLabel={t('advancedPreferences.decreaseMin')}
+                          onPress={() => setBudgetMin((v) => Math.max(budgetConfig.min, v - budgetConfig.step))}
+                          style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
+                        >
+                          <AppText variant="labelLg" color={colors.brand[600]}>−</AppText>
+                        </Pressable>
+                        <AppText variant="labelMd" style={styles.stepperValue}>
+                          {formatCompactIdr(budgetMin)}
+                        </AppText>
+                        <Pressable
+                          accessibilityLabel={t('advancedPreferences.increaseMin')}
+                          onPress={() => setBudgetMin((v) => Math.min(budgetMax - budgetConfig.step, v + budgetConfig.step))}
+                          style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
+                        >
+                          <AppText variant="labelLg" color={colors.brand[600]}>+</AppText>
+                        </Pressable>
+                      </View>
+                    </View>
+                    <AppText variant="bodySm" color={colors.neutral.textMuted}>–</AppText>
+                    <View style={styles.budgetStepper}>
+                      <AppText variant="caption" color={colors.neutral.textSecondary}>
+                        Max
+                      </AppText>
+                      <View style={styles.stepperControl}>
+                        <Pressable
+                          accessibilityLabel={t('advancedPreferences.decreaseMax')}
+                          onPress={() => setBudgetMax((v) => Math.max(budgetMin + budgetConfig.step, v - budgetConfig.step))}
+                          style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
+                        >
+                          <AppText variant="labelLg" color={colors.brand[600]}>−</AppText>
+                        </Pressable>
+                        <AppText variant="labelMd" style={styles.stepperValue}>
+                          {formatCompactIdr(budgetMax)}
+                        </AppText>
+                        <Pressable
+                          accessibilityLabel={t('advancedPreferences.increaseMax')}
+                          onPress={() => setBudgetMax((v) => Math.min(budgetConfig.max, v + budgetConfig.step))}
+                          style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
+                        >
+                          <AppText variant="labelLg" color={colors.brand[600]}>+</AppText>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               <AppText variant="labelMd">{t('advancedPreferences.transport')}</AppText>
               <View style={styles.chips}>
@@ -517,6 +607,74 @@ const styles = StyleSheet.create({
   advancedContent: {
     gap: spacing[4],
     marginTop: spacing[2],
+  },
+  advancedSummary: {
+    marginTop: spacing[1],
+    paddingHorizontal: spacing[4],
+  },
+  noBudgetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    minHeight: layout.minTouchTarget,
+  },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.borderSoft,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleTrackActive: {
+    backgroundColor: colors.brand[500],
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.neutral.white,
+    alignSelf: 'flex-start',
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
+  },
+  budgetSection: {
+    gap: spacing[2],
+  },
+  budgetLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  budgetStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[2],
+  },
+  budgetStepper: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  stepperControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.neutral.borderSoft,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+  },
+  stepperButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperValue: {
+    flex: 1,
+    textAlign: 'center',
+    minWidth: 72,
   },
   freeformInput: {
     minHeight: 80,

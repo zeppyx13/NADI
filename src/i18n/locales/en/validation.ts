@@ -9,4 +9,5 @@ export const validationEn = {
   confirmPasswordRequired: 'Password confirmation is required.',
   passwordMismatch: 'The passwords do not match.',
   termsRequired: 'You must agree to the terms to continue.',
+  acceptedTerms: 'You must accept the Terms of Service and Privacy Policy.',
 } as const;

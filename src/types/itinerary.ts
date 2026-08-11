@@ -284,6 +284,12 @@ export type BudgetPreference =
   | 'comfortable'
   | 'flexible';
 
+export type BudgetRange = {
+  currency: 'IDR';
+  min: number;
+  max: number;
+};
+
 export type TransportPreference =
   | 'motorcycle'
   | 'car'
@@ -364,7 +370,7 @@ export type ExtendedTravelPreferences = TravelPreferences & {
   date?: string;
   startTime?: string;
   startLocation?: ItineraryLocation;
-  budgetPreference?: BudgetPreference;
+  budgetRange?: BudgetRange | null;
   transportPreference?: TransportPreference;
   travelCompanion?: TravelCompanion;
   accessibilityNotes?: string[];
