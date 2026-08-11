@@ -29,6 +29,16 @@ const routeStyleByState: Record<MapRouteVisualState, RouteStyle> = {
 
 const casingWidthOffset = 4;
 
+/** Alternatives stay under the route the user actually picked. */
+function layerFor(visualState: MapRouteVisualState): {
+  casing: number;
+  stroke: number;
+} {
+  return visualState === 'alternative'
+    ? { casing: 1, stroke: 2 }
+    : { casing: 3, stroke: 4 };
+}
+
 export type RouteLayerProps = {
   routes: readonly MapRouteLine[];
   visible?: boolean;
@@ -55,7 +65,7 @@ export const RouteLayer = memo(function RouteLayer({
             strokeWidth={style.width + casingWidthOffset}
             lineCap="round"
             lineJoin="round"
-            zIndex={1}
+            zIndex={layerFor(route.visualState).casing}
           />
         );
       })}
@@ -72,7 +82,7 @@ export const RouteLayer = memo(function RouteLayer({
             lineDashPattern={
               style.dashPattern ? [...style.dashPattern] : undefined
             }
-            zIndex={2}
+            zIndex={layerFor(route.visualState).stroke}
             tappable={Boolean(onPress)}
             onPress={onPress ? () => onPress(route.id) : undefined}
           />

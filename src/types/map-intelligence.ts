@@ -69,6 +69,10 @@ export type TrafficSegment = {
   name: string;
   area: string;
   condition: TrafficLevel;
+  /**
+   * Coarse corridor geometry for the road-condition overlay. This is not a
+   * travel route: the traveller's own line is `RouteCandidate.geometry`.
+   */
   path: readonly MapLatLng[];
   averageSpeedKph?: number;
   updatedAt: string;

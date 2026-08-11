@@ -54,6 +54,17 @@ export const clusterDisableLongitudeDelta = 0.12;
 
 export const mapClusterGridSize = 4;
 
+/**
+ * Routes uses its own key and never borrows the Places key. Sharing them hid a
+ * real failure: a key restricted to the Places API answers Routes requests with
+ * HTTP 403, which used to look like a generic error and fell straight through
+ * to the local fallback geometry.
+ *
+ * One key may still serve both APIs — set the same value in both variables.
+ */
+const configuredRoutesKey =
+  process.env.EXPO_PUBLIC_GOOGLE_ROUTES_API_KEY?.trim() || null;
+
 export const googlePlacesConfig = {
   apiKey: configuredPlacesKey,
   isEnabled: Boolean(configuredPlacesKey),
@@ -61,6 +72,22 @@ export const googlePlacesConfig = {
   fieldMask:
     'places.id,places.displayName,places.formattedAddress,places.location',
   maxResults: 6,
+} as const;
+
+export const googleRoutesConfig = {
+  apiKey: configuredRoutesKey,
+  isEnabled: Boolean(configuredRoutesKey),
+  computeUrl: 'https://routes.googleapis.com/directions/v2:computeRoutes',
+  fieldMask: [
+    'routes.duration',
+    'routes.staticDuration',
+    'routes.distanceMeters',
+    'routes.polyline.encodedPolyline',
+    'routes.routeLabels',
+  ].join(','),
+  /** HIGH_QUALITY keeps every bend of the road in the encoded polyline. */
+  polylineQuality: 'HIGH_QUALITY',
+  maxAlternatives: 3,
 } as const;
 
 /**

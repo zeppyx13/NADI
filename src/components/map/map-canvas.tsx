@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { CrowdLayer } from '@/components/map/layers/crowd-layer';
-import { CustomPlaceLayer } from '@/components/map/layers/custom-place-layer';
+import { ItineraryStopLayer } from '@/components/map/layers/itinerary-stop-layer';
 import { DestinationLayer } from '@/components/map/layers/destination-layer';
 import { IncidentLayer } from '@/components/map/layers/incident-layer';
 import { MonitoringLayer } from '@/components/map/layers/monitoring-layer';
@@ -21,7 +21,11 @@ import {
 import { colors, radii } from '@/constants/theme';
 import { useMapCamera } from '@/hooks/use-map-camera';
 import type { Destination } from '@/types/destination';
-import type { ItineraryLocation, ItineraryPlace } from '@/types/itinerary';
+import type {
+  ItineraryLocation,
+  ItineraryPlace,
+  ItineraryStop,
+} from '@/types/itinerary';
 import type {
   MapDestinationPressResult,
   MapLatLng,
@@ -40,6 +44,7 @@ import type {
   SafetyZone,
   TrafficSegment,
 } from '@/types/map-intelligence';
+import type { ScoredRoute } from '@/types/route';
 
 export type MapCanvasProps = {
   destinations: readonly Destination[];
@@ -47,7 +52,7 @@ export type MapCanvasProps = {
   /** Google Places result currently pinned on the map. */
   selectedPlace?: MapPlaceResult;
   activePlace?: ItineraryPlace;
-  customPlaces?: readonly ItineraryPlace[];
+  itineraryStops?: readonly ItineraryStop[];
   startLocation?: ItineraryLocation;
   currentLocation?: MapLatLng;
   priorityDestinationIds?: readonly string[];
@@ -63,6 +68,10 @@ export type MapCanvasProps = {
   selectedMonitoringPoint?: MonitoringPoint;
   routeRelevantIncidentIds?: readonly string[];
 
+  /** Scored candidates for the current preview or leg, already ordered. */
+  routeCandidates?: readonly ScoredRoute[];
+  selectedRouteId?: string;
+
   layerVisibility: MapLayerVisibility;
   showRoute: boolean;
   routeVisualState: MapRouteVisualState;
@@ -75,7 +84,8 @@ export type MapCanvasProps = {
   onMapPress?: () => void;
 };
 
-const emptyPlaces: readonly ItineraryPlace[] = [];
+const emptyStops: readonly ItineraryStop[] = [];
+const emptyRoutes: readonly ScoredRoute[] = [];
 const emptyIncidentIds: readonly string[] = [];
 
 function toLatLng(location: MapLatLng): MapLatLng {
@@ -87,7 +97,7 @@ export function MapCanvas({
   selectedDestination,
   selectedPlace,
   activePlace,
-  customPlaces = emptyPlaces,
+  itineraryStops = emptyStops,
   startLocation,
   currentLocation,
   priorityDestinationIds = [],
@@ -99,6 +109,8 @@ export function MapCanvas({
   parkingAreas,
   selectedIncident,
   selectedMonitoringPoint,
+  routeCandidates = emptyRoutes,
+  selectedRouteId,
   routeRelevantIncidentIds = emptyIncidentIds,
   layerVisibility,
   showRoute,
@@ -118,40 +130,29 @@ export function MapCanvas({
   const routeOrigin = currentLocation ?? startLocation ?? simulatedStartCoordinate;
   const routeTarget = selectedDestination ?? activePlace;
 
-  /**
-   * Local placeholder geometry. Real Google routing arrives in a later phase;
-   * this only keeps the existing itinerary preview visible after the migration.
-   */
-  const routeCoordinates = useMemo<readonly MapLatLng[]>(() => {
-    if (!routeTarget) return [];
-    const origin = toLatLng(routeOrigin);
-    const target = toLatLng(routeTarget);
-    return [
-      origin,
-      {
-        latitude: origin.latitude * 0.67 + target.latitude * 0.33,
-        longitude: origin.longitude * 0.67 + target.longitude * 0.33,
-      },
-      {
-        latitude: origin.latitude * 0.33 + target.latitude * 0.67,
-        longitude: origin.longitude * 0.33 + target.longitude * 0.67,
-      },
-      target,
-    ];
-  }, [routeOrigin, routeTarget]);
-
-  const routes = useMemo<readonly MapRouteLine[]>(
+  const selectedCandidate = useMemo(
     () =>
-      showRoute && routeCoordinates.length > 1
-        ? [
-            {
-              id: 'nadi-current-route',
-              coordinates: routeCoordinates,
-              visualState: routeVisualState,
-            },
-          ]
-        : [],
-    [routeCoordinates, routeVisualState, showRoute],
+      routeCandidates.find((route) => route.candidate.id === selectedRouteId) ??
+      routeCandidates[0],
+    [routeCandidates, selectedRouteId],
+  );
+
+  /** Selected route drawn on top; the remaining candidates stay as alternatives. */
+  const routes = useMemo<readonly MapRouteLine[]>(() => {
+    if (!showRoute || routeCandidates.length === 0) return [];
+    return routeCandidates.map((route) => ({
+      id: route.candidate.id,
+      coordinates: route.candidate.geometry,
+      visualState:
+        route.candidate.id === selectedCandidate?.candidate.id
+          ? routeVisualState
+          : 'alternative',
+    }));
+  }, [routeCandidates, routeVisualState, selectedCandidate, showRoute]);
+
+  const routeCoordinates = useMemo<readonly MapLatLng[]>(
+    () => selectedCandidate?.candidate.geometry ?? [],
+    [selectedCandidate],
   );
 
   const focusTarget = selectedIncident
@@ -263,11 +264,9 @@ export function MapCanvas({
         visible={layerVisibility.incidents}
         onPress={onSelectIncident}
       />
-      <CustomPlaceLayer
-        places={customPlaces}
-        selectedPlaceId={
-          activePlace?.source === 'custom-map-point' ? activePlace.id : undefined
-        }
+      <ItineraryStopLayer
+        stops={itineraryStops}
+        startLocation={startLocation}
         visible={layerVisibility.itineraryStops}
       />
       <UserLocationLayer
