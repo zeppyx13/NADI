@@ -24,7 +24,6 @@ import { PlaceDetailPanel } from '@/components/map/place-detail-panel';
 import { ReoptimizationBanner } from '@/components/map/reoptimization-banner';
 import { RoutePreviewPanel } from '@/components/map/route-preview-panel';
 import { AppText, IconButton } from '@/components/ui';
-import { initialLayerVisibility } from '@/constants/map';
 import {
   colors,
   iconSizes,
@@ -44,12 +43,12 @@ import {
 import { useCurrentLocation } from '@/hooks/use-current-location';
 import { useDestinationCondition } from '@/hooks/use-destination-condition';
 import { useMapIntelligence } from '@/hooks/use-map-intelligence';
+import { useMapLayerVisibility } from '@/hooks/use-map-layer-visibility';
 import { usePlaceSearch } from '@/hooks/use-place-search';
 import { useRoutePreview } from '@/hooks/use-route-preview';
 import type { Destination } from '@/types/destination';
 import type {
   MapInteractionMode,
-  MapLayerId,
   MapLayerVisibility,
   MapPlaceResult,
   MapRouteVisualState,
@@ -78,6 +77,8 @@ export default function MapScreen() {
     itineraryId?: string;
   }>();
   const search = usePlaceSearch();
+  const { layerVisibility, toggleLayer, hasCustomLayers } =
+    useMapLayerVisibility();
   const currentLocation = useCurrentLocation();
   const intelligence = useMapIntelligence();
   const [mode, setMode] = useState<MapInteractionMode>('explore');
@@ -89,9 +90,6 @@ export default function MapScreen() {
   const [isPlaybackOpen, setIsPlaybackOpen] = useState(false);
   const [routeModeOverride, setRouteModeOverride] = useState<RouteMode | null>(
     null,
-  );
-  const [layerVisibility, setLayerVisibility] = useState<MapLayerVisibility>(
-    initialLayerVisibility,
   );
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -461,13 +459,6 @@ export default function MapScreen() {
     setMode('explore');
   };
 
-  const toggleLayer = (layer: MapLayerId) => {
-    setLayerVisibility((current) => ({
-      ...current,
-      [layer]: !current[layer],
-    }));
-  };
-
   const recenter = () => {
     closeSearch();
     void currentLocation.resolve().finally(() => {
@@ -529,10 +520,6 @@ export default function MapScreen() {
     const nextHeight = Math.ceil(event.nativeEvent.layout.height);
     setPanelHeight((current) => (current === nextHeight ? current : nextHeight));
   };
-
-  const hasCustomLayers = (
-    Object.keys(initialLayerVisibility) as MapLayerId[]
-  ).some((layer) => layerVisibility[layer] !== initialLayerVisibility[layer]);
 
   const renderPanel = () => {
     if (selectedMonitoringPoint) {

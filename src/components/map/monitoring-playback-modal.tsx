@@ -25,11 +25,15 @@ export type MonitoringPlaybackModalProps = {
  * Plays the recorded monitoring clip for a point. This is recorded footage; the
  * copy never describes it as a live stream.
  */
-export function MonitoringPlaybackModal({
-  visible,
+/**
+ * The player lives in this inner component so it is created when the modal
+ * opens and released when it closes, instead of holding a decoder for the whole
+ * session.
+ */
+function MonitoringPlaybackContent({
   point,
   onClose,
-}: MonitoringPlaybackModalProps) {
+}: Omit<MonitoringPlaybackModalProps, 'visible'>) {
   const { t, i18n } = useTranslation('screens');
   const media = resolveMonitoringMedia(point?.recordedMedia);
   const source: VideoSource =
@@ -48,68 +52,78 @@ export function MonitoringPlaybackModal({
     : null;
 
   return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.copy}>
+          <AppText variant="headingSm" color={colors.neutral.white}>
+            {point?.name ?? t('map.monitoringPlaybackTitle')}
+          </AppText>
+          {point && (
+            <AppText variant="caption" color={colors.neutral.borderStrong}>
+              {t(`map.monitoringType.${point.type}`)} · {point.area}
+            </AppText>
+          )}
+        </View>
+        <IconButton
+          accessibilityLabel={t('common.close')}
+          icon={<X size={iconSizes.button} color={colors.neutral.white} />}
+          onPress={onClose}
+        />
+      </View>
+
+      <View style={styles.stage}>
+        {source === null ? (
+          <View style={styles.unavailable}>
+            <AppText
+              variant="headingSm"
+              color={colors.neutral.white}
+              style={styles.centered}
+            >
+              {t('map.monitoringRecordingUnavailableTitle')}
+            </AppText>
+            <AppText
+              variant="bodySm"
+              color={colors.neutral.borderStrong}
+              style={styles.centered}
+            >
+              {t('map.monitoringRecordingUnavailable')}
+            </AppText>
+          </View>
+        ) : (
+          <VideoView
+            player={player}
+            style={styles.video}
+            contentFit="contain"
+            nativeControls
+            accessibilityLabel={t('map.monitoringPlaybackAccessibility')}
+          />
+        )}
+      </View>
+
+    <View style={styles.footer}>
+      <AppText variant="caption" color={colors.neutral.borderStrong}>
+        {formattedRecordedAt
+          ? t('map.monitoringRecordedAt', { time: formattedRecordedAt })
+          : t('map.monitoringRecordedNote')}
+      </AppText>
+    </View>
+    </SafeAreaView>
+  );
+}
+
+export function MonitoringPlaybackModal({
+  visible,
+  point,
+  onClose,
+}: MonitoringPlaybackModalProps) {
+  return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.copy}>
-            <AppText variant="headingSm" color={colors.neutral.white}>
-              {point?.name ?? t('map.monitoringPlaybackTitle')}
-            </AppText>
-            {point && (
-              <AppText variant="caption" color={colors.neutral.borderStrong}>
-                {t(`map.monitoringType.${point.type}`)} · {point.area}
-              </AppText>
-            )}
-          </View>
-          <IconButton
-            accessibilityLabel={t('common.close')}
-            icon={<X size={iconSizes.button} color={colors.neutral.white} />}
-            onPress={onClose}
-          />
-        </View>
-
-        <View style={styles.stage}>
-          {source === null ? (
-            <View style={styles.unavailable}>
-              <AppText
-                variant="headingSm"
-                color={colors.neutral.white}
-                style={styles.centered}
-              >
-                {t('map.monitoringRecordingUnavailableTitle')}
-              </AppText>
-              <AppText
-                variant="bodySm"
-                color={colors.neutral.borderStrong}
-                style={styles.centered}
-              >
-                {t('map.monitoringRecordingUnavailable')}
-              </AppText>
-            </View>
-          ) : (
-            <VideoView
-              player={player}
-              style={styles.video}
-              contentFit="contain"
-              nativeControls
-              accessibilityLabel={t('map.monitoringPlaybackAccessibility')}
-            />
-          )}
-        </View>
-
-        <View style={styles.footer}>
-          <AppText variant="caption" color={colors.neutral.borderStrong}>
-            {formattedRecordedAt
-              ? t('map.monitoringRecordedAt', { time: formattedRecordedAt })
-              : t('map.monitoringRecordedNote')}
-          </AppText>
-        </View>
-      </SafeAreaView>
+      {visible && <MonitoringPlaybackContent point={point} onClose={onClose} />}
     </Modal>
   );
 }

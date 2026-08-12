@@ -296,6 +296,7 @@ export const screensId = {
       predictedAtArrival: 'Perkiraan saat tiba {{time}}',
       noCoverage: 'NADI belum memiliki informasi kondisi untuk lokasi ini.',
       routeSummary: '{{minutes}} menit · {{distance}} km',
+      routeUnavailable: 'Rute belum dapat dihitung. Coba lagi sesaat lagi.',
       routeLoading: 'Menyiapkan rute…',
       routeTrafficAware: 'Sudah memperhitungkan lalu lintas',
       routeProviderLocal:
@@ -375,6 +376,19 @@ export const screensId = {
     email: 'made.arya@example.com',
     travelTitle: 'Perjalanan',
     preferencesTitle: 'Preferensi',
+    demoScenarioTitle: 'Kondisi uji perjalanan',
+    demoScenarioDescription:
+      'Pilih kondisi yang dianalisis NADI untuk perjalanan aktif. Tersedia pada build pengembangan.',
+    demoScenario: {
+      normal: 'Normal',
+      'destination-crowded': 'Destinasi padat',
+      'route-congested': 'Jalan macet',
+      'route-incident': 'Insiden di rute',
+      'road-closure': 'Jalan ditutup',
+      'parking-full': 'Parkir penuh',
+      'high-risk-route': 'Rute berisiko',
+      'local-event-impact': 'Kegiatan lokal',
+    },
     settingsTitle: 'Pengaturan',
     menu: {
       myItineraries: 'Rencana Saya',

@@ -300,6 +300,7 @@ export const screensEn = {
       predictedAtArrival: 'Expected on arrival at {{time}}',
       noCoverage: 'NADI has no condition information for this location yet.',
       routeSummary: '{{minutes}} min · {{distance}} km',
+      routeUnavailable: 'The route could not be computed yet. Try again shortly.',
       routeLoading: 'Preparing route…',
       routeTrafficAware: 'Traffic already accounted for',
       routeProviderLocal:
@@ -379,6 +380,19 @@ export const screensEn = {
     email: 'made.arya@example.com',
     travelTitle: 'Travel',
     preferencesTitle: 'Preferences',
+    demoScenarioTitle: 'Journey test condition',
+    demoScenarioDescription:
+      'Choose the condition NADI analyses for the active journey. Available on development builds.',
+    demoScenario: {
+      normal: 'Normal',
+      'destination-crowded': 'Destination crowded',
+      'route-congested': 'Road congested',
+      'route-incident': 'Route incident',
+      'road-closure': 'Road closed',
+      'parking-full': 'Parking full',
+      'high-risk-route': 'High-risk route',
+      'local-event-impact': 'Local event',
+    },
     settingsTitle: 'Settings',
     menu: {
       myItineraries: 'My Itineraries',

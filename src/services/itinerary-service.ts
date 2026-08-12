@@ -1,4 +1,5 @@
 import { destinations } from '@/data/destinations';
+import { getActiveDemoScenario } from '@/storage/demo-scenario-storage';
 import {
   readItineraryStorage,
   writeItineraryStorage,
@@ -383,9 +384,12 @@ export class LocalItineraryService implements ItineraryService {
   async reanalyzeRemainingStops(id: string): Promise<Itinerary> {
     const itinerary = await this.requireItinerary(id);
     if (itinerary.status !== 'active') throw new Error('Itinerary is not active.');
+    // The scenario is the deterministic condition the engine reasons about.
+    // It defaults to a route incident and is only changed from the
+    // development-only demo control.
     const analysis: ItineraryAnalysis = await this.analysisService.analyze(
       itinerary,
-      'route-incident',
+      getActiveDemoScenario(),
       true,
     );
     return this.updateItinerary(id, (current) => ({

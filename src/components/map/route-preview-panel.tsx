@@ -55,14 +55,16 @@ export function RoutePreviewPanel({
             {originName} → {destinationName}
           </AppText>
           <AppText variant="bodySm" color={colors.neutral.textSecondary}>
-            {isLoading || !selectedRoute || minutes === null
+            {isLoading
               ? t('map.panel.routeLoading')
-              : t('map.panel.routeSummary', {
-                  minutes,
-                  distance: formatDistanceKm(
-                    selectedRoute.candidate.distanceMeters,
-                  ),
-                })}
+              : !selectedRoute || minutes === null
+                ? t('map.panel.routeUnavailable')
+                : t('map.panel.routeSummary', {
+                    minutes,
+                    distance: formatDistanceKm(
+                      selectedRoute.candidate.distanceMeters,
+                    ),
+                  })}
           </AppText>
         </View>
       </View>

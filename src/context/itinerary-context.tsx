@@ -12,6 +12,7 @@ import {
   LocalItineraryService,
   type ItineraryService,
 } from '@/services/itinerary-service';
+import { hydrateDemoScenario } from '@/storage/demo-scenario-storage';
 import type {
   CreateGeneratedItineraryInput,
   CreateManualItineraryInput,
@@ -98,6 +99,8 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    // The demo scenario is restored before any analysis can run.
+    void hydrateDemoScenario();
     void itineraryService.hydrate().then((storedState) => {
       if (!isMounted) return;
       dispatch({ type: 'hydrate', ...storedState });

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 
 import { LanguageSelector } from '@/components/auth/language-selector';
 import { MainScreenHeader } from '@/components/layout/main-screen-header';
+import { DemoScenarioSelector } from '@/components/profile/demo-scenario-selector';
 import { ProfileMenuItem } from '@/components/profile/profile-menu-item';
 import {
   AppButton,
@@ -151,6 +152,8 @@ export default function ProfileScreen() {
           ))}
         </AppCard>
       </View>
+
+      <DemoScenarioSelector />
 
       <AppButton
         fullWidth
