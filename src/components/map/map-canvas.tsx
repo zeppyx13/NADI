@@ -262,7 +262,14 @@ function MapCanvasComponent({
       onRegionChangeComplete={handleRegionChange}
       onPress={
         onMapPress
-          ? (event) => onMapPress(event.nativeEvent.coordinate)
+          ? (event) => {
+              // Android reports a marker tap through the map's own onPress as
+              // well. Without this guard, tapping a CCTV or incident marker
+              // dropped a pin and cancelled the selection the marker had just
+              // made.
+              if (event.nativeEvent.action === 'marker-press') return;
+              onMapPress(event.nativeEvent.coordinate);
+            }
           : undefined
       }
       onPoiClick={

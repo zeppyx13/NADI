@@ -16,6 +16,8 @@ import { useTranslation } from 'react-i18next';
 
 import { LanguageSelector } from '@/components/auth/language-selector';
 import { MainScreenHeader } from '@/components/layout/main-screen-header';
+import { IncentiveEntryCard } from '@/components/incentive/incentive-entry-card';
+import { RewardWalletEntryCard } from '@/components/incentive/reward-wallet-entry-card';
 import { DemoScenarioSelector } from '@/components/profile/demo-scenario-selector';
 import { ProfileMenuItem } from '@/components/profile/profile-menu-item';
 import {
@@ -69,6 +71,10 @@ export default function ProfileScreen() {
           </AppText>
         </View>
       </View>
+
+      <IncentiveEntryCard variant="detailed" />
+
+      <RewardWalletEntryCard />
 
       <View style={styles.section}>
         <AppText

@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Navigation2 } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -78,7 +78,12 @@ export function AuthHero({ onBack }: AuthHeroProps) {
 
         <View style={styles.brandBlock}>
           <View style={styles.brandMark}>
-            <Navigation2 size={iconSizes.header} color={colors.brand[700]} />
+            <Image
+              source={require('@/assets/images/nadi-adaptive-foreground.png')}
+              style={styles.brandLogo}
+              contentFit="contain"
+              accessibilityLabel={t('brand.name', { ns: 'auth' })}
+            />
           </View>
           <View style={styles.brandCopy}>
             <AppText variant="displayMd" color={colors.neutral.white}>
@@ -158,6 +163,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.sm,
+  },
+  brandLogo: {
+    width: '78%',
+    height: '78%',
   },
   brandCopy: {
     flex: 1,

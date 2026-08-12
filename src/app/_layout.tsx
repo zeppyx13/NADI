@@ -15,6 +15,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 
 import { colors } from '@/constants/theme';
+import { IncentiveProvider } from '@/context/incentive-context';
 import { ItineraryProvider } from '@/context/itinerary-context';
 import { bootstrapI18n } from '@/i18n';
 
@@ -55,15 +56,17 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ItineraryProvider>
-        <View style={styles.root}>
-          <StatusBar style="dark" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: styles.content,
-            }}
-          />
-        </View>
+        <IncentiveProvider>
+          <View style={styles.root}>
+            <StatusBar style="dark" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: styles.content,
+              }}
+            />
+          </View>
+        </IncentiveProvider>
       </ItineraryProvider>
     </SafeAreaProvider>
   );

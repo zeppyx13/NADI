@@ -41,6 +41,7 @@ import {
   defaultItineraryStartLocation,
   getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
+import { useIncentive } from '@/context/incentive-context';
 import { useCurrentLocation } from '@/hooks/use-current-location';
 import { useDestinationCondition } from '@/hooks/use-destination-condition';
 import { useJourneyRuntime } from '@/hooks/use-journey-runtime';
@@ -85,6 +86,7 @@ export default function MapScreen() {
     useMapLayerVisibility();
   const currentLocation = useCurrentLocation();
   const intelligence = useMapIntelligence();
+  const { recordActivity } = useIncentive();
   const [mode, setMode] = useState<MapInteractionMode>('explore');
   const [selectedDestination, setSelectedDestination] = useState<Destination>();
   const [selectedPlace, setSelectedPlace] = useState<MapPlaceResult>();
@@ -107,6 +109,12 @@ export default function MapScreen() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [panelHeight, setPanelHeight] = useState(0);
   const requestedReanalysis = useRef<string | null>(null);
+  /**
+   * iOS delivers a marker tap and a map tap back to back without the
+   * `marker-press` action Android provides, so the map tap is ignored for a
+   * moment after any marker selection.
+   */
+  const lastMarkerPressAt = useRef(0);
   const itinerarySessionKeyRef = useRef<string | null>(null);
 
   const requestedItinerary = params.itineraryId
@@ -146,6 +154,8 @@ export default function MapScreen() {
   const activeItineraryPlace = currentStop?.place;
   const journey = useJourneyRuntime(mapItinerary);
 
+  /** The traveller arrived here from an itinerary, asking to follow it. */
+  const isJourneyRequested = Boolean(params.itineraryId);
   const selectedAlert = travelAlerts.find((alert) => alert.id === params.alertId);
   // The alert feed deep-links by alert id; the map speaks in incidents.
   const linkedIncident = params.alertId
@@ -221,6 +231,12 @@ export default function MapScreen() {
     baseMode = 'destination-selected';
   } else if (selectedDestination) {
     baseMode = mode;
+  } else if (mapItinerary && currentStop && isJourneyRequested) {
+    // Opening the map from an itinerary is an explicit request to see that
+    // journey. It used to also require the `destinationId` param to match the
+    // current stop, and any mismatch silently downgraded the screen to
+    // `destination-selected`, which draws no route at all.
+    baseMode = 'active-journey';
   } else if (
     mapItinerary &&
     currentStop &&
@@ -458,6 +474,7 @@ export default function MapScreen() {
   });
 
   const dropPin = useCallback( (coordinate: MapLatLng) => {
+    if (Date.now() - lastMarkerPressAt.current < 400) return;
     closeSearch();
     router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
@@ -514,6 +531,7 @@ export default function MapScreen() {
   };
 
   const selectDestination = useCallback( (destination: Destination) => {
+    lastMarkerPressAt.current = Date.now();
     router.setParams({ destinationId: undefined, alertId: undefined });
     clearSelections();
     setSelectedDestination(destination);
@@ -542,6 +560,7 @@ export default function MapScreen() {
   };
 
   const selectIncident = useCallback( (incidentId: string) => {
+    lastMarkerPressAt.current = Date.now();
     closeSearch();
     router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
@@ -553,6 +572,7 @@ export default function MapScreen() {
   }, [closeSearch, router]);
 
   const selectMonitoringPoint = useCallback( (pointId: string) => {
+    lastMarkerPressAt.current = Date.now();
     closeSearch();
     router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
@@ -634,10 +654,27 @@ export default function MapScreen() {
     });
   };
 
+  /**
+   * Completing a stop is an itinerary action first. The incentive system is a
+   * consumer of that event and never writes back into the plan.
+   */
   const markStopCompleted = () => {
-    if (!mapItinerary) return;
+    if (!mapItinerary || !currentStop) return;
+    const stop = currentStop;
     void completeCurrentStop(mapItinerary.id)
-      .then(() => setRecenterSignal((current) => current + 1))
+      .then(() => {
+        setRecenterSignal((current) => current + 1);
+        // Arrival is the verification; the stop id keeps the award idempotent.
+        void recordActivity({
+          id: `stop-completed-${mapItinerary.id}-${stop.id}`,
+          type: 'destination-visit',
+          targetType: 'destination',
+          targetId: stop.destinationId,
+          targetName: stop.destinationNameSnapshot,
+          verification: 'journey-arrival',
+          occurredAt: new Date().toISOString(),
+        });
+      })
       .catch(() => undefined);
   };
 

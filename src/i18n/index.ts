@@ -4,6 +4,7 @@ import { initReactI18next } from 'react-i18next';
 import { authEn } from './locales/en/auth';
 import { commonEn } from './locales/en/common';
 import { homeEn } from './locales/en/home';
+import { incentiveEn } from './locales/en/incentive';
 import { itineraryEn } from './locales/en/itinerary';
 import { navigationEn } from './locales/en/navigation';
 import { screensEn } from './locales/en/screens';
@@ -11,6 +12,7 @@ import { validationEn } from './locales/en/validation';
 import { authId } from './locales/id/auth';
 import { commonId } from './locales/id/common';
 import { homeId } from './locales/id/home';
+import { incentiveId } from './locales/id/incentive';
 import { itineraryId } from './locales/id/itinerary';
 import { navigationId } from './locales/id/navigation';
 import { screensId } from './locales/id/screens';
@@ -22,6 +24,7 @@ export const resources = {
   id: {
     common: commonId,
     home: homeId,
+    incentive: incentiveId,
     itinerary: itineraryId,
     auth: authId,
     navigation: navigationId,
@@ -31,6 +34,7 @@ export const resources = {
   en: {
     common: commonEn,
     home: homeEn,
+    incentive: incentiveEn,
     itinerary: itineraryEn,
     auth: authEn,
     navigation: navigationEn,

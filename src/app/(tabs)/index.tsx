@@ -3,6 +3,7 @@ import { MapPinned } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { IncentiveEntryCard } from '@/components/incentive/incentive-entry-card';
 import { HomeHeader } from '@/components/home/home-header';
 import { ImportantAlertCard } from '@/components/home/important-alert-card';
 import { JourneyCard } from '@/components/home/journey-card';
@@ -263,6 +264,8 @@ export default function HomeScreen() {
         isToday={briefingItinerary?.date === today}
         onPress={openJourney}
       />
+
+      <IncentiveEntryCard />
 
       <View>
         <RecommendationCarousel
