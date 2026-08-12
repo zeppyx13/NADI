@@ -38,6 +38,11 @@ export interface ItineraryService {
   approveOriginal(id: string): Promise<Itinerary>;
   start(id: string): Promise<Itinerary>;
   complete(id: string): Promise<Itinerary>;
+  /**
+   * Marks the stop the traveller is on as visited and promotes the next
+   * remaining stop. Completing the last stop completes the itinerary.
+   */
+  completeCurrentStop(id: string): Promise<Itinerary>;
   reanalyzeRemainingStops(id: string): Promise<Itinerary>;
 }
 
@@ -379,6 +384,77 @@ export class LocalItineraryService implements ItineraryService {
       activeItineraryId: state.activeItineraryId === id ? null : state.activeItineraryId,
     });
     return updated;
+  }
+
+  async completeCurrentStop(id: string): Promise<Itinerary> {
+    const current = await this.requireItinerary(id);
+    if (current.status !== 'active' || !current.approvedPlan) {
+      throw new Error('Itinerary is not active.');
+    }
+
+    const stops = current.approvedPlan.stops;
+    const currentIndex = stops.findIndex(
+      (stop) => stop.status !== 'completed' && stop.status !== 'skipped',
+    );
+    if (currentIndex < 0) return this.complete(id);
+
+    const nextIndex = stops.findIndex(
+      (stop, index) =>
+        index > currentIndex &&
+        stop.status !== 'completed' &&
+        stop.status !== 'skipped',
+    );
+    // Nothing left after this one, so the journey itself is finished.
+    if (nextIndex < 0) {
+      await this.updateItinerary(id, (itinerary) => ({
+        ...itinerary,
+        approvedPlan: itinerary.approvedPlan
+          ? {
+              ...itinerary.approvedPlan,
+              stops: itinerary.approvedPlan.stops.map((stop, index) =>
+                index === currentIndex
+                  ? { ...stop, status: 'completed' as const }
+                  : stop,
+              ),
+            }
+          : null,
+      }));
+      return this.complete(id);
+    }
+
+    const now = new Date().toISOString();
+    return this.updateItinerary(id, (itinerary) => {
+      const version = itinerary.version + 1;
+      return {
+        ...itinerary,
+        version,
+        approvedPlan: itinerary.approvedPlan
+          ? {
+              ...itinerary.approvedPlan,
+              stops: itinerary.approvedPlan.stops.map((stop, index) => {
+                if (index === currentIndex) {
+                  return { ...stop, status: 'completed' as const };
+                }
+                if (index === nextIndex) {
+                  return { ...stop, status: 'current' as const };
+                }
+                return stop;
+              }),
+            }
+          : null,
+        changeHistory: [
+          ...itinerary.changeHistory,
+          {
+            id: createItineraryId('change-stop-completed'),
+            version,
+            reason: 'user-edit' as const,
+            changedAt: now,
+            summaryKey: 'history.stopCompleted',
+          },
+        ],
+        updatedAt: now,
+      };
+    });
   }
 
   async reanalyzeRemainingStops(id: string): Promise<Itinerary> {

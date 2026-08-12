@@ -1,5 +1,6 @@
 import type { RouteMode } from '@/constants/theme';
 import {
+  providerTrafficPenalties,
   routeProximityMeters,
   routeRiskThresholds,
   routeSafetyPenalties,
@@ -13,7 +14,11 @@ import type {
   SafetyZone,
   TrafficSegment,
 } from '@/types/map-intelligence';
-import type { RouteCandidate, RouteScore, ScoredRoute } from '@/types/route';
+import type {
+  RouteCandidate,
+  RouteScore,
+  ScoredRoute,
+} from '@/types/route';
 import {
   arePathsWithinMeters,
   distanceToPathMeters,
@@ -86,6 +91,16 @@ function measureRoute(
   let trafficPenalty = 0;
   const touchedLevels: TrafficLevel[] = [];
 
+  // Provider traffic is an input, never a replacement for the local reading.
+  // Weighted by how much of the route each class covers, so a short jam on a
+  // long route does not read the same as a jam along the whole way.
+  const providerTraffic = candidate.providerTraffic;
+  if (providerTraffic) {
+    trafficPenalty +=
+      providerTraffic.slowRatio * providerTrafficPenalties.slow +
+      providerTraffic.jamRatio * providerTrafficPenalties.jam;
+  }
+
   trafficSegments.forEach((segment) => {
     // `segment.path` is the resolved road-aligned corridor, the same geometry
     // the traffic layer draws.
@@ -106,6 +121,7 @@ function measureRoute(
     safetyScore: clamp01(1 - safetyPenalty),
     trafficScore: clamp01(1 - trafficPenalty),
     trafficLevel: worstTrafficLevel(touchedLevels),
+    providerTrafficSeverity: providerTraffic?.worst,
     nearbyIncidentIds,
     crossesClosedRoad,
   };
@@ -145,6 +161,7 @@ export function scoreRoutes(
       balancedScore,
       routeRisk: toRouteRisk(measured.safetyScore),
       trafficLevel: measured.trafficLevel,
+      providerTrafficSeverity: measured.providerTrafficSeverity,
       nearbyIncidentIds: measured.nearbyIncidentIds,
       crossesClosedRoad: measured.crossesClosedRoad,
     };

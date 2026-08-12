@@ -290,6 +290,7 @@ export const itineraryEn = {
     reschedule: 'The visit time was adjusted.',
     reorder: 'The stop order was adjusted.',
     'replace-destination': 'A destination was replaced with a relevant alternative.',
+    stopCompleted: 'One destination marked as visited.',
     keepOriginal: 'The original plan was kept.',
   },
   ingestion: {

@@ -115,6 +115,12 @@ export const screensId = {
       heavy: 'Padat',
       blocked: 'Tertutup',
     },
+    droppedPinAccessibility: 'Titik lokasi yang dipilih di peta',
+    providerTraffic: {
+      normal: 'Lalu lintas lancar',
+      slow: 'Lalu lintas melambat',
+      jam: 'Lalu lintas padat',
+    },
     safetyRisk: {
       low: 'Risiko rendah',
       medium: 'Perlu perhatian',
@@ -301,6 +307,16 @@ export const screensId = {
       routeTrafficAware: 'Sudah memperhitungkan lalu lintas',
       routeProviderLocal:
         'Rute memakai perkiraan lokal NADI karena jalur dari penyedia peta belum tersedia.',
+      droppedPinTitle: 'Lokasi dipilih',
+      pointNoIntelligence:
+        'NADI tidak memiliki informasi kepadatan, parkir, atau risiko untuk titik ini.',
+      routeToHere: 'Rute ke sini',
+      departFromHere: 'Berangkat dari sini',
+      journeyNeedsItinerary:
+        'Belum ada rencana perjalanan yang disetujui untuk tujuan ini. Susun rencana terlebih dahulu untuk memulai perjalanan.',
+      activeDistance: '{{distance}} km',
+      arrivedAtStop: 'Tiba di tujuan',
+      markStopCompleted: 'Tandai selesai',
       routeToPlace: 'Rute ke lokasi ini',
       itineraryPlan: 'Rencana perjalanan',
       placeSource: 'Hasil pencarian Google Places',

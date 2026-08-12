@@ -1,8 +1,8 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Polyline } from 'react-native-maps';
 
 import { colors } from '@/constants/theme';
-import type { MapRouteLine, MapRouteVisualState } from '@/types/map';
+import type { MapLatLng, MapRouteLine, MapRouteVisualState } from '@/types/map';
 
 type RouteStyle = {
   color: string;
@@ -50,13 +50,23 @@ export const RouteLayer = memo(function RouteLayer({
   visible = true,
   onPress,
 }: RouteLayerProps) {
+  // Google geometry runs to well over a thousand points; the casing and the
+  // stroke share one array instead of copying it twice on every render.
+  const drawables = useMemo(
+    () =>
+      routes.map((route) => ({
+        route,
+        coordinates: [...route.coordinates] as MapLatLng[],
+      })),
+    [routes],
+  );
+
   if (!visible) return null;
 
   return (
     <>
-      {routes.map((route) => {
+      {drawables.map(({ route, coordinates }) => {
         const style = routeStyleByState[route.visualState];
-        const coordinates = [...route.coordinates];
         return (
           <Polyline
             key={`${route.id}-casing`}
@@ -69,12 +79,12 @@ export const RouteLayer = memo(function RouteLayer({
           />
         );
       })}
-      {routes.map((route) => {
+      {drawables.map(({ route, coordinates }) => {
         const style = routeStyleByState[route.visualState];
         return (
           <Polyline
             key={route.id}
-            coordinates={[...route.coordinates]}
+            coordinates={coordinates}
             strokeColor={style.color}
             strokeWidth={style.width}
             lineCap="round"

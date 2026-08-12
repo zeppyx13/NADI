@@ -1,8 +1,9 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Polyline } from 'react-native-maps';
 
 import { colors } from '@/constants/theme';
 import type { TrafficLevel } from '@/types/itinerary';
+import type { MapLatLng } from '@/types/map';
 import type { TrafficSegment } from '@/types/map-intelligence';
 
 type TrafficStyle = {
@@ -34,16 +35,30 @@ export const TrafficLayer = memo(function TrafficLayer({
   visible = true,
   onPress,
 }: TrafficLayerProps) {
+  /**
+   * Road-aligned corridors carry hundreds to nearly two thousand vertices each.
+   * Copying them on every render pushed the whole set across the bridge again
+   * for nothing, so the mutable arrays Polyline needs are built once per change.
+   */
+  const drawables = useMemo(
+    () =>
+      segments.map((segment) => ({
+        segment,
+        coordinates: [...segment.path] as MapLatLng[],
+      })),
+    [segments],
+  );
+
   if (!visible) return null;
 
   return (
     <>
-      {segments.map((segment) => {
+      {drawables.map(({ segment, coordinates }) => {
         const style = trafficStyleByCondition[segment.condition];
         return (
           <Polyline
             key={segment.id}
-            coordinates={[...segment.path]}
+            coordinates={coordinates}
             strokeColor={style.color}
             strokeWidth={style.width}
             lineCap="round"

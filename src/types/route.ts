@@ -20,6 +20,30 @@ export type RouteRequest = {
   destination: RouteEndpoint;
 };
 
+/** Google's speed classes for a stretch of the route polyline. */
+export type ProviderTrafficSeverity = 'normal' | 'slow' | 'jam';
+
+/**
+ * One stretch of the route polyline, expressed as vertex indices into
+ * `RouteCandidate.geometry`. `endIndex` is exclusive, matching Google's
+ * `endPolylinePointIndex`.
+ */
+export type ProviderTrafficInterval = {
+  startIndex: number;
+  endIndex: number;
+  severity: ProviderTrafficSeverity;
+};
+
+/** Live traffic along the route, as reported by the provider. */
+export type ProviderTrafficSummary = {
+  intervals: readonly ProviderTrafficInterval[];
+  /** Share of route vertices in each class, 0–1. */
+  normalRatio: number;
+  slowRatio: number;
+  jamRatio: number;
+  worst: ProviderTrafficSeverity;
+};
+
 /**
  * Provider-neutral route. Raw Google responses are adapted into this shape
  * before anything in the UI sees them.
@@ -41,6 +65,8 @@ export type RouteCandidate = {
   isTrafficAware: boolean;
   /** Provider label such as Google's `DEFAULT_ROUTE`, kept for diagnostics. */
   providerLabel?: string;
+  /** Present when the provider returned traffic along the polyline. */
+  providerTraffic?: ProviderTrafficSummary;
 };
 
 /**
@@ -55,6 +81,8 @@ export type RouteScore = {
   routeRisk: RouteRisk;
   /** Worst road condition NADI knows about along this route. */
   trafficLevel: TrafficLevel;
+  /** Worst provider traffic class along this route, when reported. */
+  providerTrafficSeverity?: ProviderTrafficSeverity;
   nearbyIncidentIds: readonly string[];
   crossesClosedRoad: boolean;
 };
@@ -75,7 +103,10 @@ export type RouteProviderStatus =
   | 'no-key'
   | 'http-error'
   | 'network-error'
+  /** The provider answered that no route exists between these points. */
   | 'empty'
+  /** The provider returned routes, but none of them could be read. */
+  | 'unparsable'
   | 'aborted';
 
 export type RouteDiagnostics = {

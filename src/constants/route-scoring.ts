@@ -39,6 +39,20 @@ export const routeSafetyPenalties = {
   closedRoad: 0.4,
 } as const;
 
+/**
+ * Penalty from the provider's own traffic reading, on the 0–1 traffic scale.
+ *
+ * These are deliberately small. The route duration is already traffic-aware, so
+ * congestion is priced into `fastestScore` once; a second large penalty here
+ * would count the same jam twice. This exposure term only separates candidates
+ * whose durations are close.
+ */
+export const providerTrafficPenalties = {
+  /** Multiplied by the share of the route in each class. */
+  slow: 0.12,
+  jam: 0.3,
+} as const;
+
 /** Penalty per matched traffic segment, on the 0–1 traffic scale. */
 export const routeTrafficPenalties = {
   smooth: 0,

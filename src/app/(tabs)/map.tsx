@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Layers3, LocateFixed, SlidersHorizontal } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Keyboard,
@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ActiveJourneyPanel } from '@/components/map/active-journey-panel';
 import { DestinationDetailPanel } from '@/components/map/destination-detail-panel';
+import { DroppedPinPanel } from '@/components/map/dropped-pin-panel';
 import { IncidentDetailPanel } from '@/components/map/incident-detail-panel';
 import { MapCanvas } from '@/components/map/map-canvas';
 import { MapFilterSheet } from '@/components/map/map-filter-sheet';
@@ -42,6 +43,7 @@ import {
 } from '@/data/itinerary-scenarios';
 import { useCurrentLocation } from '@/hooks/use-current-location';
 import { useDestinationCondition } from '@/hooks/use-destination-condition';
+import { useJourneyRuntime } from '@/hooks/use-journey-runtime';
 import { useMapIntelligence } from '@/hooks/use-map-intelligence';
 import { useMapLayerVisibility } from '@/hooks/use-map-layer-visibility';
 import { usePlaceSearch } from '@/hooks/use-place-search';
@@ -49,6 +51,7 @@ import { useRoutePreview } from '@/hooks/use-route-preview';
 import type { Destination } from '@/types/destination';
 import type {
   MapInteractionMode,
+  MapLatLng,
   MapLayerVisibility,
   MapPlaceResult,
   MapRouteVisualState,
@@ -70,6 +73,7 @@ export default function MapScreen() {
     getItinerary,
     reanalyzeRemainingStops,
     start,
+    completeCurrentStop,
   } = useItineraries();
   const params = useLocalSearchParams<{
     destinationId?: string;
@@ -85,9 +89,16 @@ export default function MapScreen() {
   const [selectedDestination, setSelectedDestination] = useState<Destination>();
   const [selectedPlace, setSelectedPlace] = useState<MapPlaceResult>();
   const [isPlaceRouteRequested, setIsPlaceRouteRequested] = useState(false);
+  /** Coordinate the user dropped by tapping empty map. */
+  const [droppedPin, setDroppedPin] = useState<MapLatLng>();
+  /** Origin the user chose explicitly; overrides the fallback chain. */
+  const [explicitOrigin, setExplicitOrigin] = useState<RouteEndpoint>();
+  const [routeTargetEndpointOverride, setRouteTargetEndpointOverride] =
+    useState<RouteEndpoint>();
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>();
   const [selectedMonitoringId, setSelectedMonitoringId] = useState<string>();
   const [isPlaybackOpen, setIsPlaybackOpen] = useState(false);
+  const [journeyNotice, setJourneyNotice] = useState<string | null>(null);
   const [routeModeOverride, setRouteModeOverride] = useState<RouteMode | null>(
     null,
   );
@@ -133,6 +144,7 @@ export default function MapScreen() {
     (item) => item.id === currentStop?.destinationId,
   );
   const activeItineraryPlace = currentStop?.place;
+  const journey = useJourneyRuntime(mapItinerary);
 
   const selectedAlert = travelAlerts.find((alert) => alert.id === params.alertId);
   // The alert feed deep-links by alert id; the map speaks in incidents.
@@ -195,7 +207,11 @@ export default function MapScreen() {
   }, [itinerarySessionKey]);
 
   let baseMode: MapInteractionMode = 'explore';
-  if (selectedMonitoringPoint) {
+  if (routeTargetEndpointOverride) {
+    baseMode = 'route-preview';
+  } else if (droppedPin) {
+    baseMode = 'place-selected';
+  } else if (selectedMonitoringPoint) {
     baseMode = 'monitoring-selected';
   } else if (selectedIncident) {
     baseMode = 'incident-selected';
@@ -231,6 +247,18 @@ export default function MapScreen() {
         : routeMode;
 
   const routeOriginEndpoint = useMemo<RouteEndpoint>(() => {
+    // An origin the user set explicitly always wins.
+    if (explicitOrigin) return explicitOrigin;
+    // While a journey runs the live position drives the leg, rounded so a new
+    // route is only requested after meaningful movement.
+    if (journey.isActive && journey.routeAnchor) {
+      return {
+        id: 'journey-position',
+        name: t('map.myLocation'),
+        latitude: journey.routeAnchor.latitude,
+        longitude: journey.routeAnchor.longitude,
+      };
+    }
     if (currentLocation.coordinate) {
       return {
         id: 'current-location',
@@ -245,9 +273,17 @@ export default function MapScreen() {
       latitude: routeOriginLocation.latitude,
       longitude: routeOriginLocation.longitude,
     };
-  }, [currentLocation.coordinate, routeOriginLocation, t]);
+  }, [
+    currentLocation.coordinate,
+    explicitOrigin,
+    journey.isActive,
+    journey.routeAnchor,
+    routeOriginLocation,
+    t,
+  ]);
 
   const routeDestinationEndpoint = useMemo<RouteEndpoint | undefined>(() => {
+    if (routeTargetEndpointOverride) return routeTargetEndpointOverride;
     if (isJourneyMode && activeItineraryPlace) {
       return {
         id: activeItineraryPlace.id,
@@ -278,6 +314,7 @@ export default function MapScreen() {
     displayedDestination,
     isJourneyMode,
     isPlaceRouteRequested,
+    routeTargetEndpointOverride,
     selectedPlace,
   ]);
 
@@ -391,24 +428,97 @@ export default function MapScreen() {
     [insets.top, panelHeight],
   );
 
-  const closeSearch = () => {
+  const closeSearch = useCallback( () => {
     setIsSearchExpanded(false);
     Keyboard.dismiss();
-  };
+  }, []);
 
-  const clearSelections = () => {
+  const clearSelections = useCallback( () => {
     setSelectedPlace(undefined);
     setIsPlaceRouteRequested(false);
     setSelectedIncidentId(undefined);
     setSelectedMonitoringId(undefined);
+    setDroppedPin(undefined);
+    setRouteTargetEndpointOverride(undefined);
+  }, []);
+
+  /**
+   * Any point on the map can become an endpoint: a NADI destination, a Google
+   * place, or a bare coordinate. Only NADI destinations carry NADI intelligence.
+   */
+  const toEndpoint = (
+    id: string,
+    name: string,
+    coordinate: MapLatLng,
+  ): RouteEndpoint => ({
+    id,
+    name,
+    latitude: coordinate.latitude,
+    longitude: coordinate.longitude,
+  });
+
+  const dropPin = useCallback( (coordinate: MapLatLng) => {
+    closeSearch();
+    router.setParams({ destinationId: undefined, alertId: undefined });
+    setSelectedDestination(undefined);
+    setSelectedPlace(undefined);
+    setIsPlaceRouteRequested(false);
+    setSelectedIncidentId(undefined);
+    setSelectedMonitoringId(undefined);
+    setRouteTargetEndpointOverride(undefined);
+    setDroppedPin(coordinate);
+    setMode('place-selected');
+  }, [closeSearch, router]);
+
+  const selectPoi = useCallback( (poi: {
+    placeId: string;
+    name: string;
+    coordinate: MapLatLng;
+  }) => {
+    closeSearch();
+    router.setParams({ destinationId: undefined, alertId: undefined });
+    setSelectedDestination(undefined);
+    setDroppedPin(undefined);
+    setSelectedIncidentId(undefined);
+    setSelectedMonitoringId(undefined);
+    setRouteTargetEndpointOverride(undefined);
+    setIsPlaceRouteRequested(false);
+    setMode('place-selected');
+    // Reuses the Google Place domain from Phase 1; no second place model.
+    setSelectedPlace({
+      id: `google:${poi.placeId}`,
+      source: 'google-place',
+      name: poi.name,
+      latitude: poi.coordinate.latitude,
+      longitude: poi.coordinate.longitude,
+      placeId: poi.placeId,
+    });
+  }, [closeSearch, router]);
+
+  const droppedPinLabel = droppedPin
+    ? `${droppedPin.latitude.toFixed(5)}, ${droppedPin.longitude.toFixed(5)}`
+    : '';
+
+  /** "Route to here" for any point, keeping the existing origin fallback. */
+  const routeToPoint = (endpoint: RouteEndpoint) => {
+    setRouteTargetEndpointOverride(endpoint);
+    setMode('route-preview');
   };
 
-  const selectDestination = (destination: Destination) => {
+  /** "Depart from here": sets the origin and stays on the map. */
+  const departFromPoint = (endpoint: RouteEndpoint) => {
+    setExplicitOrigin(endpoint);
+    setDroppedPin(undefined);
+    setSelectedPlace(undefined);
+    setMode(routeDestinationEndpoint ? 'route-preview' : 'explore');
+  };
+
+  const selectDestination = useCallback( (destination: Destination) => {
     router.setParams({ destinationId: undefined, alertId: undefined });
     clearSelections();
     setSelectedDestination(destination);
     setMode('destination-selected');
-  };
+  }, [clearSelections, router]);
 
   const selectSearchResult = (result: MapPlaceResult) => {
     closeSearch();
@@ -431,7 +541,7 @@ export default function MapScreen() {
     setSelectedPlace(result);
   };
 
-  const selectIncident = (incidentId: string) => {
+  const selectIncident = useCallback( (incidentId: string) => {
     closeSearch();
     router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
@@ -440,9 +550,9 @@ export default function MapScreen() {
     setSelectedMonitoringId(undefined);
     setSelectedIncidentId(incidentId);
     setMode('incident-selected');
-  };
+  }, [closeSearch, router]);
 
-  const selectMonitoringPoint = (pointId: string) => {
+  const selectMonitoringPoint = useCallback( (pointId: string) => {
     closeSearch();
     router.setParams({ destinationId: undefined, alertId: undefined });
     setSelectedDestination(undefined);
@@ -451,7 +561,7 @@ export default function MapScreen() {
     setSelectedIncidentId(undefined);
     setSelectedMonitoringId(pointId);
     setMode('monitoring-selected');
-  };
+  }, [closeSearch, router]);
 
   const closeDetailSelection = () => {
     router.setParams({ alertId: undefined });
@@ -478,6 +588,11 @@ export default function MapScreen() {
    * journey store: an approved itinerary whose next stop matches the previewed
    * destination becomes the active one.
    */
+  /**
+   * Starting a journey is a mode transition, not a dialog. An approved itinerary
+   * whose next stop matches the previewed destination becomes the active one;
+   * the itinerary service owns the status change.
+   */
   const startJourney = () => {
     const targetId = routeDestinationEndpoint?.id;
     const startableItinerary = itineraries.find((itinerary) => {
@@ -490,25 +605,40 @@ export default function MapScreen() {
       );
     });
 
-    if (startableItinerary) {
-      void start(startableItinerary.id)
-        .then(() => {
-          clearSelections();
-          setSelectedDestination(undefined);
-          setMode('explore');
-          setRecenterSignal((current) => current + 1);
-        })
-        .catch(() => undefined);
+    if (!startableItinerary) {
+      // Nothing to activate: this is a plain route preview, so stay on it.
+      setJourneyNotice(t('map.panel.journeyNeedsItinerary'));
       return;
     }
 
-    Alert.alert(
-      t('map.journeyReadyTitle'),
-      t('map.journeyReadyMessage', {
-        mode: t(`map.panel.${routeMode}`).toLocaleLowerCase(),
-        destination: routeDestinationEndpoint?.name ?? '',
-      }),
-    );
+    setJourneyNotice(null);
+    void start(startableItinerary.id)
+      .then(() => {
+        clearSelections();
+        setSelectedDestination(undefined);
+        setExplicitOrigin(undefined);
+        setMode('explore');
+        setRecenterSignal((current) => current + 1);
+      })
+      .catch(() => undefined);
+  };
+
+  /** Continue focuses the current leg and re-centres on the traveller. */
+  const continueJourney = () => {
+    closeSearch();
+    clearSelections();
+    setSelectedDestination(undefined);
+    setMode('explore');
+    void currentLocation.resolve().finally(() => {
+      setRecenterSignal((current) => current + 1);
+    });
+  };
+
+  const markStopCompleted = () => {
+    if (!mapItinerary) return;
+    void completeCurrentStop(mapItinerary.id)
+      .then(() => setRecenterSignal((current) => current + 1))
+      .catch(() => undefined);
   };
 
   const openItinerary = () => {
@@ -522,6 +652,32 @@ export default function MapScreen() {
   };
 
   const renderPanel = () => {
+    if (droppedPin && !routeTargetEndpointOverride) {
+      return (
+        <DroppedPinPanel
+          coordinateLabel={droppedPinLabel}
+          onRouteHere={() =>
+            routeToPoint(
+              toEndpoint(
+                `custom:${droppedPinLabel}`,
+                t('map.panel.droppedPinTitle'),
+                droppedPin,
+              ),
+            )
+          }
+          onDepartHere={() =>
+            departFromPoint(
+              toEndpoint(
+                `custom:${droppedPinLabel}`,
+                t('map.panel.droppedPinTitle'),
+                droppedPin,
+              ),
+            )
+          }
+          onClear={closeDetailSelection}
+        />
+      );
+    }
     if (selectedMonitoringPoint) {
       return (
         <MonitoringDetailPanel
@@ -544,6 +700,11 @@ export default function MapScreen() {
         <PlaceDetailPanel
           place={selectedPlace}
           onRouteToPlace={() => setIsPlaceRouteRequested(true)}
+          onDepartFromPlace={() =>
+            departFromPoint(
+              toEndpoint(selectedPlace.id, selectedPlace.name, selectedPlace),
+            )
+          }
           onClear={closeDetailSelection}
         />
       );
@@ -560,7 +721,15 @@ export default function MapScreen() {
           }
           remainingCount={remainingStops.length}
           condition={destinationCondition}
-          onContinue={() => setRecenterSignal((current) => current + 1)}
+          distanceMeters={
+            selectedRoute?.candidate.distanceMeters ?? undefined
+          }
+          routeRisk={selectedRoute?.score.routeRisk}
+          providerTrafficSeverity={selectedRoute?.score.providerTrafficSeverity}
+          hasArrived={journey.hasArrived}
+          isRouteUnavailable={routePreview.result?.status === 'unavailable'}
+          onContinue={continueJourney}
+          onMarkCompleted={markStopCompleted}
           onOpenItinerary={mapItinerary ? openItinerary : undefined}
         />
       );
@@ -576,6 +745,7 @@ export default function MapScreen() {
           selectedRoute={selectedRoute}
           onRouteModeChange={setRouteModeOverride}
           onStartJourney={startJourney}
+          notice={journeyNotice}
         />
       );
     }
@@ -629,7 +799,9 @@ export default function MapScreen() {
         onSelectDestination={selectDestination}
         onSelectIncident={selectIncident}
         onSelectMonitoringPoint={selectMonitoringPoint}
-        onMapPress={closeSearch}
+        onMapPress={dropPin}
+        onPoiPress={selectPoi}
+        droppedPin={droppedPin}
       />
 
       <View

@@ -21,6 +21,8 @@ export type RoutePreviewPanelProps = {
   selectedRoute: ScoredRoute | null;
   onRouteModeChange: (mode: RouteMode) => void;
   onStartJourney: () => void;
+  /** Explains why starting is not possible, instead of a dead-end alert. */
+  notice?: string | null;
 };
 
 const routeModes: readonly RouteMode[] = ['fastest', 'safest', 'balanced'];
@@ -38,6 +40,7 @@ export function RoutePreviewPanel({
   selectedRoute,
   onRouteModeChange,
   onStartJourney,
+  notice,
 }: RoutePreviewPanelProps) {
   const { t } = useTranslation('screens');
   const minutes = selectedRoute
@@ -110,6 +113,12 @@ export function RoutePreviewPanel({
       {result?.status === 'local-fallback' && (
         <AppText variant="caption" color={colors.neutral.textSecondary}>
           {t('map.panel.routeProviderLocal')}
+        </AppText>
+      )}
+
+      {notice && (
+        <AppText variant="caption" color={colors.semantic.warning.text}>
+          {notice}
         </AppText>
       )}
 

@@ -292,6 +292,7 @@ export const itineraryId = {
     reschedule: 'Waktu kunjungan disesuaikan.',
     reorder: 'Urutan stop disesuaikan.',
     'replace-destination': 'Destinasi diganti dengan alternatif relevan.',
+    stopCompleted: 'Satu tujuan ditandai selesai.',
     keepOriginal: 'Rencana awal dipertahankan.',
   },
   ingestion: {

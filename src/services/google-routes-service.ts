@@ -7,6 +7,9 @@ import {
 } from '@/types/google-routes';
 import type { MapLatLng } from '@/types/map';
 import type {
+  ProviderTrafficInterval,
+  ProviderTrafficSeverity,
+  ProviderTrafficSummary,
   RouteCandidate,
   RouteEndpoint,
   RouteProviderStatus,
@@ -120,6 +123,70 @@ async function postComputeRoutes(
   }
 }
 
+const severityByGoogleSpeed: Record<string, ProviderTrafficSeverity> = {
+  NORMAL: 'normal',
+  SLOW: 'slow',
+  TRAFFIC_JAM: 'jam',
+};
+
+const severityRank: Record<ProviderTrafficSeverity, number> = {
+  normal: 0,
+  slow: 1,
+  jam: 2,
+};
+
+/**
+ * Adapts Google's speed reading intervals into NADI's own shape. Indices refer
+ * to vertices of the decoded polyline and `endIndex` stays exclusive, exactly
+ * as `endPolylinePointIndex` is defined. Unknown speed classes are dropped
+ * rather than guessed.
+ */
+function toProviderTraffic(
+  route: GoogleRoute,
+  vertexCount: number,
+): ProviderTrafficSummary | undefined {
+  const raw = route.travelAdvisory?.speedReadingIntervals;
+  if (!raw || raw.length === 0 || vertexCount < 2) return undefined;
+
+  const intervals: ProviderTrafficInterval[] = [];
+  const covered: Record<ProviderTrafficSeverity, number> = {
+    normal: 0,
+    slow: 0,
+    jam: 0,
+  };
+
+  raw.forEach((entry) => {
+    const severity = severityByGoogleSpeed[entry.speed];
+    if (!severity) return;
+    const startIndex = Math.max(0, entry.startPolylinePointIndex ?? 0);
+    const endIndex = Math.min(vertexCount, entry.endPolylinePointIndex);
+    if (endIndex <= startIndex) return;
+    intervals.push({ startIndex, endIndex, severity });
+    covered[severity] += endIndex - startIndex;
+  });
+
+  if (intervals.length === 0) return undefined;
+
+  const total = covered.normal + covered.slow + covered.jam;
+  if (total === 0) return undefined;
+
+  const worst = intervals.reduce<ProviderTrafficSeverity>(
+    (current, interval) =>
+      severityRank[interval.severity] > severityRank[current]
+        ? interval.severity
+        : current,
+    'normal',
+  );
+
+  return {
+    intervals,
+    normalRatio: covered.normal / total,
+    slowRatio: covered.slow / total,
+    jamRatio: covered.jam / total,
+    worst,
+  };
+}
+
 /**
  * Adapts one Google route into a NADI candidate. The decoded polyline is kept
  * whole: nothing here reduces the geometry to origin and destination.
@@ -142,6 +209,7 @@ function toCandidate(route: GoogleRoute, index: number): RouteCandidate | null {
     // TRAFFIC_AWARE was requested, so a differing static duration proves it applied.
     isTrafficAware: staticSeconds !== null && staticSeconds !== trafficAwareSeconds,
     providerLabel: route.routeLabels?.[0],
+    providerTraffic: toProviderTraffic(route, geometry.length),
   };
 }
 
@@ -163,6 +231,8 @@ export async function computeGoogleRoutes(
       computeAlternativeRoutes: true,
       units: 'METRIC',
       polylineQuality: googleRoutesConfig.polylineQuality,
+      // Live traffic along the polyline, verified against Routes API v2.
+      extraComputations: ['TRAFFIC_ON_POLYLINE'],
     },
     googleRoutesConfig.fieldMask,
     signal,
@@ -184,7 +254,14 @@ export async function computeGoogleRoutes(
     .filter((candidate): candidate is RouteCandidate => candidate !== null);
 
   if (candidates.length === 0) {
-    return { status: 'empty', candidates: [], httpStatus: response.httpStatus };
+    // No routes at all is a real answer: there is no drivable route. Routes
+    // that arrived but failed to parse is our problem, not the provider's, and
+    // the two must not be treated the same downstream.
+    return {
+      status: response.routes.length === 0 ? 'empty' : 'unparsable',
+      candidates: [],
+      httpStatus: response.httpStatus,
+    };
   }
 
   return { status: 'ready', candidates, httpStatus: response.httpStatus };

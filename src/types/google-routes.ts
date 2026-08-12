@@ -13,7 +13,44 @@ export type GoogleRoute = {
   staticDuration?: string;
   polyline: { encodedPolyline: string };
   routeLabels?: readonly string[];
+  travelAdvisory?: { speedReadingIntervals?: readonly GoogleSpeedReadingInterval[] };
 };
+
+/**
+ * One entry of `routes.travelAdvisory.speedReadingIntervals`. Google omits
+ * `startPolylinePointIndex` when it is zero, and `endPolylinePointIndex` is
+ * exclusive.
+ */
+export type GoogleSpeedReadingInterval = {
+  startPolylinePointIndex?: number;
+  endPolylinePointIndex: number;
+  speed: string;
+};
+
+function isSpeedReadingInterval(
+  value: unknown,
+): value is GoogleSpeedReadingInterval {
+  if (!isRecord(value)) return false;
+  if (typeof value.endPolylinePointIndex !== 'number') return false;
+  if (typeof value.speed !== 'string') return false;
+  if (
+    value.startPolylinePointIndex !== undefined &&
+    typeof value.startPolylinePointIndex !== 'number'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function readSpeedReadingIntervals(
+  value: unknown,
+): readonly GoogleSpeedReadingInterval[] {
+  if (!isRecord(value)) return [];
+  const advisory = value.travelAdvisory;
+  if (!isRecord(advisory)) return [];
+  if (!Array.isArray(advisory.speedReadingIntervals)) return [];
+  return advisory.speedReadingIntervals.filter(isSpeedReadingInterval);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

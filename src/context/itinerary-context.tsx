@@ -48,6 +48,7 @@ type ItineraryContextValue = ItineraryContextState & {
   approveOriginal: (id: string) => Promise<Itinerary>;
   start: (id: string) => Promise<Itinerary>;
   complete: (id: string) => Promise<Itinerary>;
+  completeCurrentStop: (id: string) => Promise<Itinerary>;
   reanalyzeRemainingStops: (id: string) => Promise<Itinerary>;
 };
 
@@ -158,6 +159,15 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'complete', itinerary });
     return itinerary;
   }, []);
+  const completeCurrentStop = useCallback(async (id: string) => {
+    const itinerary = await itineraryService.completeCurrentStop(id);
+    // Completing the last stop finishes the journey, so the active id clears.
+    dispatch({
+      type: itinerary.status === 'completed' ? 'complete' : 'upsert',
+      itinerary,
+    });
+    return itinerary;
+  }, []);
   const reanalyzeRemainingStops = useCallback(
     (id: string) => upsertFrom(itineraryService.reanalyzeRemainingStops(id)),
     [upsertFrom],
@@ -184,6 +194,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
       approveOriginal,
       start,
       complete,
+      completeCurrentStop,
       reanalyzeRemainingStops,
     }),
     [
@@ -198,6 +209,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
       approveOriginal,
       start,
       complete,
+      completeCurrentStop,
       reanalyzeRemainingStops,
     ],
   );

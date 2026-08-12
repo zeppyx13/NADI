@@ -6,6 +6,8 @@ import { OccupancyBadge } from '@/components/status/occupancy-badge';
 import { AppButton, AppCard, AppText } from '@/components/ui';
 import { colors, iconSizes, spacing } from '@/constants/theme';
 import type { DestinationArrivalCondition } from '@/services/destination-condition-service';
+import type { RouteRisk } from '@/types/itinerary';
+import type { ProviderTrafficSeverity } from '@/types/route';
 
 export type ActiveJourneyPanelProps = {
   nextStopName: string;
@@ -13,7 +15,15 @@ export type ActiveJourneyPanelProps = {
   travelMinutes?: number;
   remainingCount: number;
   condition: DestinationArrivalCondition | null;
+  /** Live leg figures; each is omitted rather than invented when unknown. */
+  distanceMeters?: number;
+  routeRisk?: RouteRisk;
+  providerTrafficSeverity?: ProviderTrafficSeverity;
+  hasArrived?: boolean;
+  /** True when the provider could not produce a route for this leg. */
+  isRouteUnavailable?: boolean;
   onContinue: () => void;
+  onMarkCompleted?: () => void;
   onOpenItinerary?: () => void;
 };
 
@@ -23,13 +33,26 @@ export function ActiveJourneyPanel({
   travelMinutes,
   remainingCount,
   condition,
+  distanceMeters,
+  routeRisk,
+  providerTrafficSeverity,
+  hasArrived = false,
+  isRouteUnavailable = false,
   onContinue,
+  onMarkCompleted,
   onOpenItinerary,
 }: ActiveJourneyPanelProps) {
   const { t } = useTranslation('screens');
   const summary = [
     travelMinutes !== undefined
       ? t('map.panel.activeTravelTime', { minutes: travelMinutes })
+      : null,
+    distanceMeters !== undefined
+      ? t('map.panel.activeDistance', {
+          distance: (distanceMeters / 1000).toFixed(
+            distanceMeters < 10_000 ? 1 : 0,
+          ),
+        })
       : null,
     t('map.panel.remainingDestinations', { count: remainingCount }),
   ]
@@ -70,6 +93,34 @@ export function ActiveJourneyPanel({
         </View>
       )}
 
+      {isRouteUnavailable && (
+        <AppText variant="caption" color={colors.semantic.warning.text}>
+          {t('map.panel.routeUnavailable')}
+        </AppText>
+      )}
+
+      {(routeRisk || providerTrafficSeverity) && (
+        <AppText variant="caption" color={colors.neutral.textSecondary}>
+          {[
+            routeRisk ? t(`map.safetyRisk.${routeRisk}`) : null,
+            providerTrafficSeverity
+              ? t(`map.providerTraffic.${providerTrafficSeverity}`)
+              : null,
+          ]
+            .filter((item): item is string => item !== null)
+            .join(' · ')}
+        </AppText>
+      )}
+
+      {hasArrived && onMarkCompleted && (
+        <AppButton
+          fullWidth
+          size="sm"
+          label={t('map.panel.markStopCompleted')}
+          onPress={onMarkCompleted}
+        />
+      )}
+
       <View style={styles.actionRow}>
         {onOpenItinerary && (
           <View style={styles.actionItem}>
@@ -87,7 +138,11 @@ export function ActiveJourneyPanel({
             fullWidth
             size="sm"
             variant="teal"
-            label={t('map.panel.continueJourney')}
+            label={
+              hasArrived
+                ? t('map.panel.arrivedAtStop')
+                : t('map.panel.continueJourney')
+            }
             onPress={onContinue}
           />
         </View>

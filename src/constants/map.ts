@@ -84,6 +84,8 @@ export const googleRoutesConfig = {
     'routes.distanceMeters',
     'routes.polyline.encodedPolyline',
     'routes.routeLabels',
+    // Only the traffic intervals are requested, not the whole travelAdvisory.
+    'routes.travelAdvisory.speedReadingIntervals',
   ].join(','),
   /** HIGH_QUALITY keeps every bend of the road in the encoded polyline. */
   polylineQuality: 'HIGH_QUALITY',

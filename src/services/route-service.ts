@@ -122,6 +122,22 @@ function logDiagnostics(
   console.warn('[NADI Routes]', summary);
 }
 
+/** No usable route, and nothing is invented to stand in for one. */
+function buildUnavailable(
+  request: RouteRequest,
+  diagnostics: RouteDiagnostics,
+): RouteResult {
+  logDiagnostics(request, 'unavailable', diagnostics);
+  return {
+    origin: request.origin,
+    destination: request.destination,
+    routes: [],
+    selectionByMode: { fastest: '', safest: '', balanced: '' },
+    status: 'unavailable',
+    diagnostics,
+  };
+}
+
 export class NadiRouteService implements RouteService {
   async computeRoutes(
     request: RouteRequest,
@@ -173,25 +189,31 @@ export class NadiRouteService implements RouteService {
       }
     }
 
-    if (candidates.length === 0) {
+    /**
+     * The local fallback covers every case where we did not get a usable answer
+     * from the provider: no key, an HTTP failure, a network failure, or routes
+     * that arrived but could not be read.
+     *
+     * The one case it must not cover is `empty`, where the provider answered
+     * successfully that no driving route exists. Inventing a straight line
+     * there fabricates an ETA — a request from San Francisco to Bali produced
+     * "17179 km · 33685 menit", and scoring that trans-Pacific line against
+     * every traffic corridor is what made the screen hang.
+     */
+    if (candidates.length === 0 && diagnostics.providerStatus !== 'empty') {
       candidates = buildLocalCandidates(request.origin, request.destination);
       diagnostics.fallbackUsed = true;
+    }
+
+    if (candidates.length === 0) {
+      return buildUnavailable(request, diagnostics);
     }
 
     const routes = scoreRoutes(candidates, inputs);
     const selectionByMode = selectRoutesByMode(routes);
 
     if (!selectionByMode) {
-      const unavailable: RouteResult = {
-        origin: request.origin,
-        destination: request.destination,
-        routes: [],
-        selectionByMode: { fastest: '', safest: '', balanced: '' },
-        status: 'unavailable',
-        diagnostics,
-      };
-      logDiagnostics(request, 'unavailable', diagnostics);
-      return unavailable;
+      return buildUnavailable(request, diagnostics);
     }
 
     logDiagnostics(request, status, diagnostics);

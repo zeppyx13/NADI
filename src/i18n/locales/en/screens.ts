@@ -118,6 +118,12 @@ export const screensEn = {
       heavy: 'Congested',
       blocked: 'Closed',
     },
+    droppedPinAccessibility: 'Location point selected on the map',
+    providerTraffic: {
+      normal: 'Traffic clear',
+      slow: 'Traffic slowing',
+      jam: 'Traffic jam',
+    },
     safetyRisk: {
       low: 'Low risk',
       medium: 'Needs attention',
@@ -305,6 +311,16 @@ export const screensEn = {
       routeTrafficAware: 'Traffic already accounted for',
       routeProviderLocal:
         'The route uses a local NADI estimate because provider geometry is unavailable.',
+      droppedPinTitle: 'Selected location',
+      pointNoIntelligence:
+        'NADI has no crowd, parking, or risk information for this point.',
+      routeToHere: 'Route to here',
+      departFromHere: 'Depart from here',
+      journeyNeedsItinerary:
+        'No approved plan matches this destination yet. Create a plan first to start a journey.',
+      activeDistance: '{{distance}} km',
+      arrivedAtStop: 'Arrived at destination',
+      markStopCompleted: 'Mark as visited',
       routeToPlace: 'Route to this place',
       itineraryPlan: 'Itinerary plan',
       placeSource: 'Google Places search result',

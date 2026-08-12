@@ -9,6 +9,7 @@ import type { MapPlaceResult } from '@/types/map';
 export type PlaceDetailPanelProps = {
   place: MapPlaceResult;
   onRouteToPlace: () => void;
+  onDepartFromPlace: () => void;
   onClear: () => void;
 };
 
@@ -19,6 +20,7 @@ export type PlaceDetailPanelProps = {
 export function PlaceDetailPanel({
   place,
   onRouteToPlace,
+  onDepartFromPlace,
   onClear,
 }: PlaceDetailPanelProps) {
   const { t } = useTranslation('screens');
@@ -41,21 +43,29 @@ export function PlaceDetailPanel({
         {t('map.panel.placeNoIntelligence')}
       </AppText>
 
+      <AppButton
+        fullWidth
+        size="sm"
+        variant="ghost"
+        label={t('map.panel.clearPlace')}
+        onPress={onClear}
+      />
+
       <View style={styles.actionRow}>
         <View style={styles.actionItem}>
           <AppButton
             fullWidth
             size="sm"
             variant="secondary"
-            label={t('map.panel.clearPlace')}
-            onPress={onClear}
+            label={t('map.panel.departFromHere')}
+            onPress={onDepartFromPlace}
           />
         </View>
         <View style={styles.actionItem}>
           <AppButton
             fullWidth
             size="sm"
-            label={t('map.panel.routeToPlace')}
+            label={t('map.panel.routeToHere')}
             leadingIcon={
               <Navigation size={iconSizes.button} color={colors.neutral.white} />
             }
