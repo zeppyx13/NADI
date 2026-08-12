@@ -86,7 +86,8 @@ function getBriefingItinerary(
 
 function hasPendingRouteIncidentRecommendation(itinerary: Itinerary): boolean {
   const analysis = itinerary.latestAnalysis;
-  if (analysis?.scenarioId !== 'route-incident') return false;
+  // Any scenario that produced a proposal counts, not just a route incident.
+  if (!analysis || analysis.recommendations.length === 0) return false;
 
   const hasAppliedRecommendation = itinerary.changeHistory.some(
     (record) =>

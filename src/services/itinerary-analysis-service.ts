@@ -4,7 +4,6 @@ import {
   getTravelMinutesBetween,
 } from '@/data/itinerary-scenarios';
 import { itineraryDecisionThresholds } from '@/data/itinerary-thresholds';
-import type { OccupancyLevel } from '@/constants/theme';
 import type { Destination } from '@/types/destination';
 import type {
   DestinationConditionSnapshot,
@@ -18,6 +17,8 @@ import type {
   ItineraryPlan,
   ItineraryRecommendation,
   ItineraryScenarioId,
+  RouteRisk,
+  TrafficLevel,
   ItineraryStop,
   StopAssessment,
 } from '@/types/itinerary';
@@ -26,8 +27,13 @@ import {
   calculatePlanTotals,
   clonePlan,
   createItineraryId,
-  parseTimeToMinutes,
 } from '@/utils/itinerary';
+import { routeService } from '@/services/route-service';
+import {
+  itineraryImpactService,
+  toConditionSnapshot,
+  type ItineraryImpactService,
+} from './itinerary-impact-service';
 import {
   LocalItineraryNarrativeService,
   type ItineraryNarrativeService,
@@ -39,81 +45,6 @@ export interface ItineraryAnalysisService {
     scenarioId?: ItineraryScenarioId,
     remainingOnly?: boolean,
   ): Promise<ItineraryAnalysis>;
-}
-
-function ratioToOccupancyLevel(ratio: number): OccupancyLevel {
-  if (ratio >= itineraryDecisionThresholds.occupancy.critical) return 'critical';
-  if (ratio >= itineraryDecisionThresholds.occupancy.high) return 'high';
-  if (ratio >= itineraryDecisionThresholds.occupancy.moderate) return 'moderate';
-  return 'low';
-}
-
-function getPredictedLoad(
-  destinationId: string,
-  basePredictedLoadRatio: number,
-  arrivalTime: string,
-  scenarioId: ItineraryScenarioId,
-): number {
-  const arrivalMinutes = parseTimeToMinutes(arrivalTime) ?? 0;
-  const hour = Math.floor(arrivalMinutes / 60);
-
-  if (scenarioId === 'destination-crowded') {
-    if (destinationId === 'tanah-lot' && hour >= 14 && hour < 17) return 0.94;
-    if (destinationId === 'pantai-kuta' && hour >= 10 && hour < 18) return 0.93;
-  }
-
-  if (destinationId === 'tanah-lot' && hour >= 17) return 0.58;
-  if (destinationId === 'pantai-kuta' && hour >= 18) return 0.64;
-  return basePredictedLoadRatio;
-}
-
-function createConditionSnapshot(
-  stop: ItineraryStop,
-  scenarioId: ItineraryScenarioId,
-  isFirstRemaining: boolean,
-  capturedAt: string,
-): DestinationConditionSnapshot | null {
-  const destination = destinations.find((item) => item.id === stop.destinationId);
-  const source = destinationScenarioConditions[stop.destinationId];
-  if (destination?.intelligenceCoverage !== 'pilot' || !source) return null;
-
-  const predictedLoadRatio = getPredictedLoad(
-    stop.destinationId,
-    source.basePredictedLoadRatio,
-    stop.plannedArrival,
-    scenarioId,
-  );
-  const hasRouteIncident = scenarioId === 'route-incident' && isFirstRemaining;
-  const hasRouteCongestion = scenarioId === 'route-congested' && isFirstRemaining;
-  const arrivalHour = Math.floor((parseTimeToMinutes(stop.plannedArrival) ?? 0) / 60);
-  const localEventAffectsAccess =
-    Boolean(source.localEventId) && arrivalHour >= 16 && arrivalHour < 20;
-
-  return {
-    capturedAt,
-    predictedArrivalAt: stop.plannedArrival,
-    occupancy: {
-      currentLoadRatio: source.currentLoadRatio,
-      predictedLoadRatio,
-      status: ratioToOccupancyLevel(predictedLoadRatio),
-    },
-    access: {
-      trafficLevel:
-        hasRouteIncident || hasRouteCongestion ? 'heavy' : source.trafficLevel,
-      routeRisk: hasRouteIncident ? 'high' : source.routeRisk,
-      activeIncidentIds: hasRouteIncident
-        ? ['incident-denpasar-01']
-        : [...source.activeIncidentIds],
-      roadClosed: source.roadClosed,
-    },
-    parking: {
-      status: source.parkingStatus,
-    },
-    localContext: source.localEventId
-      ? { eventId: source.localEventId, affectsAccess: localEventAffectsAccess }
-      : undefined,
-    dataSource: 'mock',
-  };
 }
 
 function getIssues(condition: DestinationConditionSnapshot): ItineraryIssue[] {
@@ -174,27 +105,110 @@ function shiftStopsFromIndex(plan: ItineraryPlan, index: number, minutes: number
   return { ...plan, stops };
 }
 
-function createReroutePlan(plan: ItineraryPlan, stopId: string): ItineraryPlan {
+/** Minutes added when no provider alternative could be evaluated. */
+const FALLBACK_REROUTE_DELAY_MINUTES = 18;
+
+/**
+ * Builds the reroute plan. When a real alternative was evaluated, its own
+ * duration and risk are used; otherwise a conservative fixed delay applies.
+ */
+function createReroutePlan(
+  plan: ItineraryPlan,
+  stopId: string,
+  alternative?: RerouteAlternative,
+): ItineraryPlan {
   const affectedIndex = plan.stops.findIndex((stop) => stop.id === stopId);
   if (affectedIndex < 0) return clonePlan(plan);
-  const shifted = shiftStopsFromIndex(plan, affectedIndex, 18);
+
+  const currentMinutes =
+    plan.stops[affectedIndex].routeToStop?.estimatedTravelMinutes ?? 45;
+  const nextMinutes = alternative
+    ? alternative.estimatedTravelMinutes
+    : currentMinutes + FALLBACK_REROUTE_DELAY_MINUTES;
+  const delayMinutes = Math.max(0, nextMinutes - currentMinutes);
+
+  const shifted = shiftStopsFromIndex(plan, affectedIndex, delayMinutes);
   const stops = shifted.stops.map((stop, index) =>
     index === affectedIndex
       ? {
           ...stop,
           routeToStop: {
             mode: 'safest' as const,
-            estimatedTravelMinutes:
-              (stop.routeToStop?.estimatedTravelMinutes ?? 45) + 18,
-            trafficLevel: 'moderate' as const,
-            routeRisk: 'low' as const,
-            activeIncidentIds: [],
+            estimatedTravelMinutes: nextMinutes,
+            trafficLevel: alternative?.trafficLevel ?? ('moderate' as const),
+            routeRisk: alternative?.routeRisk ?? ('low' as const),
+            activeIncidentIds: [...(alternative?.blockingIncidentIds ?? [])],
             roadClosed: false,
           },
         }
       : stop,
   );
   return { ...shifted, stops, ...calculatePlanTotals(stops) };
+}
+
+type RerouteAlternative = {
+  estimatedTravelMinutes: number;
+  trafficLevel: TrafficLevel;
+  routeRisk: RouteRisk;
+  blockingIncidentIds: readonly string[];
+};
+
+/**
+ * Asks the existing route service for candidates and picks one that NADI does
+ * not consider disturbed.
+ *
+ * Google Routes has no parameter for "avoid this exact road", so nothing is
+ * faked in the request. Candidates are requested normally and then judged
+ * against NADI's own incident, closure, traffic and risk data.
+ */
+async function findRerouteAlternative(
+  origin: ItineraryLocation,
+  stop: ItineraryStop,
+  impactService: ItineraryImpactService,
+): Promise<RerouteAlternative | null> {
+  try {
+    const result = await routeService.computeRoutes({
+      origin: {
+        id: origin.id ?? 'journey-origin',
+        name: origin.name,
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+      },
+      destination: {
+        id: stop.place.id,
+        name: stop.place.name,
+        latitude: stop.place.latitude,
+        longitude: stop.place.longitude,
+      },
+    });
+    if (result.routes.length === 0) return null;
+
+    const impacts = await impactService.assessRouteCandidates(result.routes);
+    const clearImpact = impacts.find((impact) => impact.isClear);
+    const chosenImpact =
+      clearImpact ??
+      // Nothing is fully clear, so take whatever avoids a closure at least.
+      impacts.find((impact) => !impact.crossesClosedRoad) ??
+      null;
+    if (!chosenImpact) return null;
+
+    const chosen = result.routes.find(
+      (route) => route.candidate.id === chosenImpact.routeId,
+    );
+    if (!chosen) return null;
+
+    return {
+      estimatedTravelMinutes: Math.max(
+        1,
+        Math.round(chosen.candidate.durationSeconds / 60),
+      ),
+      trafficLevel: chosenImpact.worstTrafficLevel,
+      routeRisk: chosenImpact.routeRisk,
+      blockingIncidentIds: chosenImpact.blockingIncidentIds,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function createReschedulePlan(plan: ItineraryPlan, stopId: string): ItineraryPlan {
@@ -392,6 +406,11 @@ export class LocalItineraryAnalysisService implements ItineraryAnalysisService {
   constructor(
     private readonly narrativeService: ItineraryNarrativeService =
       new LocalItineraryNarrativeService(),
+    /**
+     * Reads the map intelligence repositories. Injected the same way the
+     * narrative service is, so nothing new is invented for wiring.
+     */
+    private readonly impactService: ItineraryImpactService = itineraryImpactService,
   ) {}
 
   async analyze(
@@ -404,25 +423,41 @@ export class LocalItineraryAnalysisService implements ItineraryAnalysisService {
     const relevantStops = remainingOnly
       ? plan.stops.filter((stop) => stop.status !== 'completed' && stop.status !== 'skipped')
       : plan.stops;
-    const assessments = relevantStops.flatMap((stop, index): StopAssessment[] => {
-      const condition = createConditionSnapshot(
-        stop,
-        scenarioId,
-        index === 0,
-        analyzedAt,
-      );
-      if (!condition) return [];
+    // Conditions now come from the map intelligence repositories: traffic with
+    // road-aligned geometry, verified incidents, safety zones, crowd and
+    // parking. The deterministic scenario is layered on the next remaining stop.
+    const assessedStops = await Promise.all(
+      relevantStops.map(async (stop, index) => {
+        const intelligence = await this.impactService.assessStop(
+          stop,
+          scenarioId,
+          index === 0,
+        );
+        return {
+          stop,
+          condition: toConditionSnapshot(
+            intelligence,
+            stop.plannedArrival,
+            analyzedAt,
+          ),
+        };
+      }),
+    );
+    const assessments = assessedStops.flatMap(
+      ({ stop, condition }): StopAssessment[] => {
+        if (!condition) return [];
 
-      const issues = getIssues(condition);
-      return [
-        {
-          stopId: stop.id,
-          status: getAssessmentStatus(issues),
-          condition,
-          issues,
-        },
-      ];
-    });
+        const issues = getIssues(condition);
+        return [
+          {
+            stopId: stop.id,
+            status: getAssessmentStatus(issues),
+            condition,
+            issues,
+          },
+        ];
+      },
+    );
     const affectedAssessment = assessments.find((assessment) =>
       assessment.issues.some((issue) => issue.severity === 'danger'),
     ) ?? assessments.find((assessment) => assessment.issues.length > 0);
@@ -494,7 +529,15 @@ export class LocalItineraryAnalysisService implements ItineraryAnalysisService {
     };
 
     if (hasRouteProblem) {
-      await createRecommendation('reroute', createReroutePlan(plan, affectedStop.id));
+      const alternative = await findRerouteAlternative(
+        itinerary.startLocation,
+        affectedStop,
+        this.impactService,
+      );
+      await createRecommendation(
+        'reroute',
+        createReroutePlan(plan, affectedStop.id, alternative ?? undefined),
+      );
     } else {
       await createRecommendation(
         'reschedule',

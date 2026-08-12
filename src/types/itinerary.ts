@@ -29,11 +29,19 @@ export type RouteRisk = 'low' | 'medium' | 'high';
 export type ParkingStatus = 'available' | 'limited' | 'full' | 'unknown';
 export type ConditionDataSource = 'mock' | 'live' | 'forecast';
 
+/**
+ * Deterministic conditions the adaptive engine can be asked to reason about.
+ * The same scenario always produces the same assessment; nothing here is random.
+ */
 export type ItineraryScenarioId =
   | 'normal'
   | 'destination-crowded'
   | 'route-congested'
-  | 'route-incident';
+  | 'route-incident'
+  | 'road-closure'
+  | 'parking-full'
+  | 'high-risk-route'
+  | 'local-event-impact';
 
 export type StopAssessmentStatus =
   | 'optimal'

@@ -82,6 +82,10 @@ export const itineraryScenarioDescriptions: Record<ItineraryScenarioId, string> 
   'destination-crowded': 'Arrival-time crowding at Kuta or Tanah Lot',
   'route-congested': 'Heavy traffic on one remaining route segment',
   'route-incident': 'A route incident affecting the next remaining stop',
+  'road-closure': 'A verified closure on the road to the next remaining stop',
+  'parking-full': 'No parking left at the next remaining stop',
+  'high-risk-route': 'The access route to the next remaining stop is high risk',
+  'local-event-impact': 'A local event restricts access to the next remaining stop',
 };
 
 const pairKey = (fromId: string, toId: string) => [fromId, toId].sort().join(':');

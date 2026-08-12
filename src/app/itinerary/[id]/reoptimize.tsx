@@ -51,8 +51,10 @@ export default function ReoptimizeItineraryScreen() {
     void reanalyzeRemainingStops(id).catch(() => setError(t('errors.analysis')));
   }, [id, itinerary, reanalyzeRemainingStops, t]);
 
+  // A proposal exists whenever the analysis produced recommendations, whatever
+  // scenario raised them. Gating on a single scenario id hid every other one.
   const hasReoptimizationAnalysis =
-    itinerary?.latestAnalysis?.scenarioId === 'route-incident';
+    (itinerary?.latestAnalysis?.recommendations.length ?? 0) > 0;
 
   if (!isHydrated || (itinerary?.status === 'active' && !hasReoptimizationAnalysis && !error)) {
     return (
@@ -79,7 +81,7 @@ export default function ReoptimizeItineraryScreen() {
   }
 
   const analysis = itinerary.latestAnalysis;
-  if (error || !analysis || analysis.scenarioId !== 'route-incident') {
+  if (error || !analysis || analysis.recommendations.length === 0) {
     return (
       <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
         <ErrorState

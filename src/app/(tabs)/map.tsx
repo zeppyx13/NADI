@@ -173,8 +173,9 @@ export default function MapScreen() {
           new Date(latestAnalysis.analyzedAt).getTime(),
       ),
   );
+  // The banner appears only when a real proposal is waiting, from any scenario.
   const pendingRecommendation =
-    latestAnalysis?.scenarioId === 'route-incident' && !hasAppliedLatestAnalysis
+    latestAnalysis && !hasAppliedLatestAnalysis
       ? latestAnalysis.recommendations[0] ?? null
       : null;
   const itinerarySessionKey = params.itineraryId
